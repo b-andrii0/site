@@ -1,0 +1,8 @@
+{
+ "_uitleg": "Commando's zonder prompt in de docx waarvan het toestel bevestigd is. Sleutel = begin van het commando zoals in de docx, waarde = label.",
+ "podman run --init -d registry.access.redhat.com/ubi10/ubi:latest sleep infinity": "RHEL VM · serverXX",
+ "podman run -d --name contdns --hostname contdns -p 1053:53/udp -p 1053:53/tcp contdns /usr/sbin/named -g -u named -c /etc/named.conf": "RHEL VM · serverXX",
+ "podman run -d --name myhttpd -p 8080:80 ubi10/ubi sh -c": "RHEL VM · serverXX",
+ "http://localhost:9090": "Browser · serverXX",
+ "ssh student@192.168.112.100": "Windows host · VS Code (Add New SSH Host)"
+}

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="nl" data-stijl="{{STIJL}}" data-preview="{{PREVIEW}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="googlebot" content="noindex, nofollow">
+<title>{{TITEL}}</title>
+<link rel="stylesheet" href="assets/site.css">
+<script>
+  // thema + stijl vóór het tekenen zetten (geen flits)
+  (function () {
+    try {
+      var t = localStorage.getItem("thema");
+      if (t === "licht" || t === "donker") document.documentElement.setAttribute("data-thema", t);
+      if (document.documentElement.getAttribute("data-preview") === "1") {
+        var s = localStorage.getItem("stijl");
+        if (s) document.documentElement.setAttribute("data-stijl", s);
+      }
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<a class="skip" href="#inhoud">Naar de inhoud</a>
+<header class="balk">
+  <button class="menu-knop" type="button" aria-controls="zijbalk" aria-expanded="false">Menu</button>
+  <a class="merk" href="index.html"><span class="merk-titel">{{SITE}}</span><span class="merk-sub">{{SUB}}</span></a>
+  <div class="zoek">
+    <label class="vh" for="zoekveld">Zoeken in de cursus</label>
+    <input id="zoekveld" type="search" placeholder="Zoeken… (ook commando's)" autocomplete="off" spellcheck="false">
+    <kbd class="zoek-hint">/</kbd>
+    <div class="zoek-res" id="zoekres" role="listbox" hidden></div>
+  </div>
+  <div class="knoppen">
+    <div class="stijlkiezer" role="group" aria-label="Stijl kiezen">
+      <span class="sk-lbl">Stijl</span>
+      <button type="button" data-zet-stijl="werkboek">A</button>
+      <button type="button" data-zet-stijl="blauwdruk">B</button>
+      <button type="button" data-zet-stijl="signaal">C</button>
+    </div>
+    <button class="thema-knop" type="button" aria-label="Thema wisselen" title="Licht / donker">
+      <svg class="i-zon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></svg>
+      <svg class="i-maan" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>
+    </button>
+  </div>
+</header>
+<div class="raam">
+  <aside class="zijbalk" id="zijbalk">
+    <p class="zb-titel">Hoofdstukken</p>
+    {{NAV}}
+  </aside>
+  <main id="inhoud" class="inhoud">
+    {{INHOUD}}
+    {{VORIGE_VOLGENDE}}
+  </main>
+  <aside class="rechts">{{TOC}}</aside>
+</div>
+<div class="leesbalk" aria-hidden="true"><span></span></div>
+<button class="naar-boven" type="button" aria-label="Naar boven" title="Naar boven" hidden></button>
+<div class="verder" id="verder" hidden></div>
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="Afbeelding">
+  <button type="button" class="lb-sluit" aria-label="Sluiten">✕</button>
+  <button type="button" class="lb-vorige" aria-label="Vorige afbeelding">‹</button>
+  <figure><img alt=""><figcaption></figcaption></figure>
+  <button type="button" class="lb-volgende" aria-label="Volgende afbeelding">›</button>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="sluier" hidden></div>
+<script src="assets/zoekindex.js"></script>
+<script src="assets/site.js"></script>
+<script src="assets/extra.js"></script>
+</body>
+</html>

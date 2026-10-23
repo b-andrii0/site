@@ -1,0 +1,261 @@
+[
+  {
+    "hoofdstuk": 0,
+    "titel": "Herhaling: Docker, Podman en Kubernetes",
+    "kern": [
+      "Virtualisatie: een hypervisor (bv. Proxmox) draait meerdere VM's op één fysieke server; elke VM heeft een volledig eigen besturingssysteem (overhead aan CPU, RAM, schijf, patches, licenties).",
+      "Containers delen de kernel van het host-besturingssysteem en bevatten enkel de applicatie + afhankelijkheden: licht, starten in een fractie van een seconde, eenvoudig te verplaatsen.",
+      "Een container start je vanuit een image (= vooraf verpakte applicatie, een sjabloon of 'gestopte container').",
+      "Docker werkt met een centrale daemon; Podman (Red Hat) is daemonless en rootless. De commando's zijn grotendeels gelijk.",
+      "Orkestratie (Kubernetes/K8s = standaard, Docker Swarm = eenvoudiger, ingebouwd in Docker, minder gebruikt) beheert veel containers over meerdere nodes: plaatsing, op- en afschalen, herstart op andere node bij uitval.",
+      "Demo's: nginx-webserver draaien op poort 8080, en een eigen image hallo-test bouwen met een Dockerfile."
+    ],
+    "secties": [
+      {
+        "titel": "Begrippen: VM, container, image, orkestratie",
+        "items": [
+          {"type": "vergelijk", "links": "Virtuele machine (VM)", "rechts": "Container", "rijen": [
+            ["draait op een hypervisor (bv. Proxmox)", "draait op het OS van de host"],
+            ["volledig eigen besturingssysteem", "deelt de kernel van de host"],
+            ["overhead: CPU, RAM, schijfruimte, patches, licenties", "enkel applicatie + afhankelijkheden"],
+            ["zwaarder, trager opstarten", "licht, start in een fractie van een seconde, eenvoudig te verplaatsen"]
+          ], "belangrijk": true},
+          {"type": "feit", "tekst": "Image = vooraf verpakte applicatie; bevat alles wat nodig is om de applicatie te draaien. Een image is als een gestopte container of een sjabloon voor een container.", "belangrijk": true},
+          {"type": "feit", "tekst": "Orchestration tool: bepaalt waar containers draaien, schaalt automatisch op en af, start containers opnieuw op een andere node als er één uitvalt. Kubernetes (K8s) = standaard; Docker Swarm = eenvoudiger, ingebouwd in Docker, veel minder gebruikt.", "belangrijk": true}
+        ]
+      },
+      {
+        "titel": "Docker versus Podman",
+        "items": [
+          {"type": "vergelijk", "links": "Docker", "rechts": "Podman", "rijen": [
+            ["Standaard: daemon draait als root", "Standaard: rootless, zonder daemon"],
+            ["Rootless: aparte installatie nodig (dockerd-rootless-setuptool.sh install)", "Rootless: werkt meteen voor elke gewone gebruiker"],
+            ["Hoe: elke gebruiker krijgt een eigen dockerd die als die gebruiker draait", "Hoe: geen daemon, elk Podman-commando is een gewoon proces van de gebruiker"]
+          ], "belangrijk": true},
+          {"type": "feit", "tekst": "Docker heeft sinds versie 20.10 (2020) een stabiele rootless mode; het verschil met Podman zit in hoe het werkt en of het standaard aanstaat."}
+        ]
+      },
+      {
+        "titel": "Demo 1: webserver nginx in een container",
+        "items": [
+          {"type": "cmd", "cmd": "podman image pull docker.io/library/nginx:latest", "uitleg": "image nginx (webserver) downloaden", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman image ls", "uitleg": "lijst met images opvragen", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "nmcli device show ens160 | grep 'IP4.ADDRESS'", "uitleg": "IP-adres van de netwerkkaart ens160 achterhalen", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman run -d --name web -p 8080:80 nginx", "uitleg": "nieuwe container 'web' starten op basis van image nginx; geeft een uniek ID als bevestiging", "toestel": "serverXX", "belangrijk": true},
+          {"type": "optie", "naam": "-d", "uitleg": "container op de achtergrond starten (detached)"},
+          {"type": "optie", "naam": "--name web", "uitleg": "de container een naam geven"},
+          {"type": "optie", "naam": "-p 8080:80", "uitleg": "poort 8080 op de containerhost → poort 80 in de container"},
+          {"type": "feit", "tekst": "Controle: in een browser http://<IP-adres van de VM>:8080 → webserver zichtbaar."},
+          {"type": "cmd", "cmd": "podman stop web", "uitleg": "container stoppen → webpagina niet meer bereikbaar", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman start web", "uitleg": "container opnieuw starten → webpagina weer bereikbaar", "toestel": "serverXX"}
+        ]
+      },
+      {
+        "titel": "Demo 2: eigen image bouwen (hallo-test)",
+        "items": [
+          {"type": "cmd", "cmd": "mkdir docker-linux", "uitleg": "projectdirectory aanmaken", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "touch docker-linux/Dockerfile", "uitleg": "bestand Dockerfile aanmaken (zonder extensie)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "nano docker-linux/Dockerfile", "uitleg": "inhoud van de Dockerfile schrijven", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "FROM fedora:latest", "uitleg": "officiële Fedora-image als basis (bevat Bash)", "toestel": "bestand", "belangrijk": true},
+          {"type": "cmd", "cmd": "WORKDIR /app", "uitleg": "werkdirectory binnen de container (hier optioneel)", "toestel": "bestand"},
+          {"type": "cmd", "cmd": "CMD [\"echo\", \"Hello, World\"]", "uitleg": "bepaalt wat er uitgevoerd wordt wanneer de container start", "toestel": "bestand", "belangrijk": true},
+          {"type": "cmd", "cmd": "cd docker-linux/", "uitleg": "naar de directory met de Dockerfile gaan", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman build -t hallo-test .", "uitleg": "image bouwen met naam hallo-test uit de Dockerfile in de huidige directory (.)", "toestel": "serverXX", "belangrijk": true},
+          {"type": "feit", "tekst": "podman build: 1) Dockerfile lezen in . 2) instructies één voor één uitvoeren 3) elke instructie = een laag in de image 4) image taggen (hallo-test) 5) lokaal opslaan. Een image kan ook op het internet bewaard worden (bv. Docker Hub).", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman images", "uitleg": "lokale images opvragen", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman run hallo-test", "uitleg": "container uit de image draaien → toont Hello, World (directory maakt niet meer uit)", "toestel": "serverXX", "belangrijk": true}
+        ]
+      }
+    ],
+    "vragen": [
+      {"vraag": "Wat is het belangrijkste verschil tussen een VM en een container?", "antwoord": "Een VM heeft een volledig eigen besturingssysteem; een container deelt de kernel van de host en bevat enkel de applicatie + afhankelijkheden."},
+      {"vraag": "Waarom zijn containers lichter en sneller dan VM's?", "antwoord": "Geen eigen OS (geen overhead aan CPU, RAM, schijf, patches, licenties); ze starten in een fractie van een seconde."},
+      {"vraag": "Wat is een image?", "antwoord": "Een vooraf verpakte applicatie met alles wat nodig is om ze te draaien; een sjabloon / 'gestopte container' waaruit je een container start."},
+      {"vraag": "Wat doet een hypervisor? Geef een voorbeeld.", "antwoord": "Laat meerdere VM's draaien op één fysieke server; bv. Proxmox."},
+      {"vraag": "Noem het verschil tussen Docker en Podman qua architectuur.", "antwoord": "Docker werkt met een centrale daemon (als root); Podman is daemonless en rootless: elk commando is een gewoon proces van de gebruiker."},
+      {"vraag": "Kan Docker rootless draaien?", "antwoord": "Ja, stabiel sinds versie 20.10 (2020), maar het vraagt een aparte installatie (dockerd-rootless-setuptool.sh install); elke gebruiker krijgt dan een eigen dockerd."},
+      {"vraag": "Wat doet een orchestration tool en welke is de standaard?", "antwoord": "Beheert veel containers over meerdere nodes: bepaalt waar ze draaien, schaalt op/af, herstart op een andere node bij uitval. Kubernetes (K8s); Docker Swarm is eenvoudiger maar minder gebruikt."},
+      {"vraag": "Wat betekent -p 8080:80 in 'podman run -d --name web -p 8080:80 nginx'?", "antwoord": "Poort 8080 op de containerhost wordt gekoppeld aan poort 80 in de container."},
+      {"vraag": "Hoe controleer je of de nginx-container werkt?", "antwoord": "In een browser surfen naar het IP-adres van de VM op poort 8080."},
+      {"vraag": "Met welke commando's stop en herstart je de container web?", "antwoord": "podman stop web en podman start web."},
+      {"vraag": "Wat bepaalt de instructie CMD in een Dockerfile?", "antwoord": "Wat er uitgevoerd wordt wanneer de container start (hier echo \"Hello, World\")."},
+      {"vraag": "Wat betekent de punt in 'podman build -t hallo-test .'?", "antwoord": "Podman zoekt de Dockerfile in de huidige directory; -t geeft de image de naam/tag hallo-test."},
+      {"vraag": "Wat gebeurt er met elke instructie tijdens podman build?", "antwoord": "Elke uitgevoerde instructie creëert een laag in de nieuwe image."}
+    ]
+  },
+  {
+    "hoofdstuk": 1,
+    "titel": "RHEL 10 in VMware Workstation",
+    "kern": [
+      "Red Hat-developeraccount aanmaken op https://developers.redhat.com/ en de ISO van RHEL 10.2 downloaden.",
+      "In VMware Workstation: VMnet8 (NAT) met subnet 192.168.112.0/24 via Edit, Virtual Network Editor.",
+      "Basis-VM: Typical, OS later, Red Hat Enterprise Linux 10 64-bit, schijf 100 GB, ISO koppelen, UEFI; gebruiker student / 123 als administrator.",
+      "Van de basis-VM twee volledige klonen (Create full clone): serverXX (192.168.112.100) en clientXX (192.168.112.200); gateway en DNS 192.168.112.2.",
+      "Hostname met hostnamectl, vast IP met nmcli; daarna snapshot 'ingesteld' van beide VM's.",
+      "SSH vanaf de Windows-host (ssh student@192.168.112.100); bij een gewijzigde host key de oude regels uit known_hosts verwijderen."
+    ],
+    "secties": [
+      {
+        "titel": "Account, ISO en VMware-netwerk",
+        "items": [
+          {"type": "feit", "tekst": "Account: https://developers.redhat.com/ → Register for an account → Create my account → mailadres verifiëren via link in de mail.", "belangrijk": true},
+          {"type": "feit", "tekst": "Downloaden: inloggen → Red Hat Enterprise Linux → Download → Red Hat Enterprise Linux 10.2 → extra info → Submit → ISO wordt gedownload.", "belangrijk": true},
+          {"type": "feit", "tekst": "VMware Workstation: geen serial nodig; info op BB (VMware Workstation Pro (of Fusion) for Education)."},
+          {"type": "feit", "tekst": "VMnet8 = subnet 192.168.112.0/24. Instellen: Edit, Virtual Network Editor… → Change Settings → VMnet8 selecteren.", "belangrijk": true},
+          {"type": "optie", "naam": "Connect a host virtual adapter to this network", "uitleg": "vanaf de host eenvoudig verbinden met VM's op VMnet8"},
+          {"type": "optie", "naam": "Use local DHCP service to distribute IP address to VMs", "uitleg": "VM krijgt een IP-adres via DHCP van VMware"}
+        ]
+      },
+      {
+        "titel": "VM aanmaken en RHEL 10.2 installeren",
+        "items": [
+          {"type": "feit", "tekst": "File, New Virtual Machine → Typical → I will install the operating system later → Linux, Red Hat Enterprise Linux 10 64-bit → naam → schijf 100 GB → Customize Hardware: New CD/DVD, Use ISO image file → Close, Finish.", "belangrijk": true},
+          {"type": "feit", "tekst": "Edit virtual machine settings → Options → Advanced: controleer dat UEFI geselecteerd is."},
+          {"type": "fout", "probleem": "VM opgeslagen in een met de cloud gesynchroniseerde map (OneDrive, Dropbox, Google Drive)", "oplossing": "Niet doen! De VM crasht en je verliest alles; kies een lokale map."},
+          {"type": "fout", "probleem": "Waarschuwing bij opstarten over Side channel mitigations", "oplossing": "Side Channel Mitigations staat aan in VMware maar je CPU ondersteunt ze niet."},
+          {"type": "fout", "probleem": "This host supports Intel VT-x, but Intel VT-x is disabled", "oplossing": "VT-x-optie activeren in het BIOS van je laptop."},
+          {"type": "feit", "tekst": "Muis terug naar Windows uit de VM: CTRL+ALT."},
+          {"type": "feit", "tekst": "Installatie: Install Red Hat Enterprise Linux 10.2 → taal Nederlands → 5 stappen: 1) toetsenbord 2) Verbind met Red Hat (developeraccount, Registreren) 3) Installatiebestemming (automatisch partitioneren, bevestigen met Klaar) 4) Rootaccount uit 5) gebruiker aanmaken → Begin installatie → Systeem herstarten.", "belangrijk": true},
+          {"type": "feit", "tekst": "Gebruiker: student, wachtwoord 123, aanduiden als administrator (eenvoudig wachtwoord want testmachine).", "belangrijk": true}
+        ]
+      },
+      {
+        "titel": "Basisinstellingen na installatie (basis-VM, prompt localhost)",
+        "items": [
+          {"type": "cmd", "cmd": "sudo subscription-manager repos --enable codeready-builder-for-rhel-10-$(arch)-rpms", "uitleg": "CodeReady Builder-repository inschakelen (extra pakketten voor softwareontwikkeling: libraries, headers, build-tools niet in BaseOS/AppStream)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo dnf update", "uitleg": "updates zoeken, downloaden en installeren", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo shutdown -h now", "uitleg": "machine afsluiten", "toestel": "serverXX"},
+          {"type": "feit", "tekst": "Energie-instellingen wijzigen: VM's hebben daar vaak problemen mee."}
+        ]
+      },
+      {
+        "titel": "Server en client afleiden (klonen)",
+        "items": [
+          {"type": "feit", "tekst": "Basis-VM niet zelf gebruiken: zo kan je er altijd op terugvallen. Leid er 2 VM's van af.", "belangrijk": true},
+          {"type": "feit", "tekst": "VM, Manage, Clone… → The current state in the virtual machine (er is geen snapshot) → Create full clone → naam Server<jeinitialen> → Voltooien. Idem voor Client<jeinitialen>.", "belangrijk": true},
+          {"type": "vergelijk", "links": "Full clone", "rechts": "Geen full clone", "rijen": [
+            ["geen afhankelijkheid tussen de VM's", "kloon werkt niet meer als je de originele VM verwijdert"]
+          ], "belangrijk": true}
+        ]
+      },
+      {
+        "titel": "Hostname en vast IP-adres",
+        "items": [
+          {"type": "cmd", "cmd": "sudo hostnamectl set-hostname serverXX", "uitleg": "hostname instellen (op client: clientXX)", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo reboot", "uitleg": "herstarten → hostname gewijzigd", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "nmcli device show ens160", "uitleg": "IP-adres, gateway en DNS-server van de netwerkkaart ens160 opvragen", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo nmcli connection modify ens160 ipv4.method manual ipv4.addresses 192.168.112.100/24 ipv4.gateway 192.168.112.2 ipv4.dns 192.168.112.2", "uitleg": "vast IP-adres 192.168.112.100; gateway en DNS 192.168.112.2 (client: 192.168.112.200)", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo nmcli connection down ens160", "uitleg": "verbinding uitzetten", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo nmcli connection up ens160", "uitleg": "verbinding aanzetten (nieuwe instellingen actief)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "nmcli device show ens160 | egrep \"IP4.ADDRESS|IP4.GATEWAY|IP4.DNS\"", "uitleg": "IP, gateway en DNS controleren", "toestel": "serverXX"},
+          {"type": "feit", "tekst": "Netwerkkaart heet bij iedereen ens160. serverXX = 192.168.112.100, clientXX = 192.168.112.200, gateway/DNS = 192.168.112.2, subnet 192.168.112.0/24.", "belangrijk": true}
+        ]
+      },
+      {
+        "titel": "Snapshots",
+        "items": [
+          {"type": "feit", "tekst": "Snapshot maken van Server<jeinitialen> én Client<jeinitialen>, telkens met naam ingesteld → Take Snapshot.", "belangrijk": true},
+          {"type": "feit", "tekst": "Doel: een vastgelegde toestand van de VM waarop je kan terugvallen."}
+        ]
+      },
+      {
+        "titel": "SSH vanaf de Windows-host",
+        "items": [
+          {"type": "cmd", "cmd": "systemctl status sshd", "uitleg": "controleren dat de SSH-server draait (standaard ingesteld)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "ssh student@192.168.112.100", "uitleg": "verbinden met serverXX via CMD of PowerShell", "toestel": "Windows host", "belangrijk": true},
+          {"type": "cmd", "cmd": "ssh student@192.168.112.200", "uitleg": "verbinden met clientXX", "toestel": "Windows host"},
+          {"type": "fout", "probleem": "Waarschuwing bij SSH: host key is veranderd (ooit verbonden met een VM met hetzelfde IP-adres)", "oplossing": "C:\\Users\\<jouwgebruikersnaam>\\.ssh\\known_hosts openen (notepad), alle regels met 192.168.112.100 en 192.168.112.200 verwijderen en opslaan (of known_hosts helemaal verwijderen). Daarna opnieuw verbinden, yes typen, inloggen.", "belangrijk": true},
+          {"type": "cmd", "cmd": "notepad c:\\Users\\stijn\\.ssh\\known_hosts", "uitleg": "known_hosts openen (voorbeeld gebruiker stijn)", "toestel": "Windows host"},
+          {"type": "feit", "tekst": "Host key = het unieke 'vingerafdruk'-certificaat van de server."}
+        ]
+      }
+    ],
+    "vragen": [
+      {"vraag": "Welk subnet gebruik je voor VMnet8 en waar stel je dat in?", "antwoord": "192.168.112.0/24; in VMware via Edit, Virtual Network Editor… → Change Settings → VMnet8."},
+      {"vraag": "Waarvoor dient 'Connect a host virtual adapter to this network'?", "antwoord": "Zodat je vanaf de host eenvoudig verbinding kan maken met VM's op VMnet8."},
+      {"vraag": "Waarvoor dient 'Use local DHCP service to distribute IP address to VMs'?", "antwoord": "Een VM krijgt dan via DHCP een IP-adres van VMware."},
+      {"vraag": "Welke schijfgrootte en welk firmwaretype gebruik je voor de VM?", "antwoord": "100 GB; UEFI (controleren bij Options, Advanced)."},
+      {"vraag": "Waarom mag je de VM niet in een OneDrive/Dropbox/Google Drive-map zetten?", "antwoord": "De VM crasht en je verliest alles wat erin staat."},
+      {"vraag": "Wat doe je bij de fout 'Intel VT-x is disabled'?", "antwoord": "VT-x activeren in het BIOS van je laptop."},
+      {"vraag": "Welke gebruiker maak je aan tijdens de installatie?", "antwoord": "student met wachtwoord 123, aangeduid als administrator; rootaccount uit."},
+      {"vraag": "Waarom kies je bij het klonen voor 'Create full clone'?", "antwoord": "Er is dan geen afhankelijkheid: de kloon blijft werken als je de originele VM verwijdert."},
+      {"vraag": "Waarom gebruik je de basis-VM zelf niet?", "antwoord": "Zodat je er later altijd op kan terugvallen; je werkt met klonen."},
+      {"vraag": "Hoe stel je de hostname in?", "antwoord": "sudo hostnamectl set-hostname serverXX (daarna sudo reboot)."},
+      {"vraag": "Welk commando geeft de server het vaste IP-adres?", "antwoord": "sudo nmcli connection modify ens160 ipv4.method manual ipv4.addresses 192.168.112.100/24 ipv4.gateway 192.168.112.2 ipv4.dns 192.168.112.2, daarna connection down/up ens160."},
+      {"vraag": "Welke IP-adressen hebben server, client en gateway/DNS?", "antwoord": "serverXX 192.168.112.100, clientXX 192.168.112.200, gateway en DNS 192.168.112.2."},
+      {"vraag": "Waarvoor dienen snapshots en hoe heet het snapshot?", "antwoord": "Om de ingestelde toestand vast te leggen zodat je kan terugvallen; naam: ingesteld (op beide VM's)."},
+      {"vraag": "Waarom krijg je een waarschuwing over een veranderde host key en hoe los je dat op?", "antwoord": "Je verbond ooit met een VM met hetzelfde IP; verwijder de regels met 192.168.112.100/200 uit C:\\Users\\<gebruiker>\\.ssh\\known_hosts (of het bestand zelf), verbind opnieuw en typ yes."},
+      {"vraag": "Wat doet de CodeReady Builder-repository?", "antwoord": "Bevat extra pakketten voor softwareontwikkeling (libraries, headers, build-tools) die niet in BaseOS of AppStream zitten."}
+    ]
+  },
+  {
+    "hoofdstuk": 2,
+    "titel": "Installatie Docker en Podman",
+    "kern": [
+      "Twee VM's met RHEL 10 op VMnet8 (NAT): serverXX 192.168.112.100 en clientXX 192.168.112.200, gebruiker student met sudo-rechten, schijf minimaal 100 GB, geregistreerd bij Red Hat, snapshots gemaakt.",
+      "Podman: geen centrale daemon, dezelfde OCI-standaarden, containers als gewone processen van de gebruiker → standaard rootless (veiliger). Docker kan rootless maar vraagt extra configuratie.",
+      "Docker en Podman kunnen naast elkaar staan (Podman heeft geen daemon), maar hebben elk eigen opslag en netwerkconfiguratie: images/containers van de ene zie je niet in de andere.",
+      "Podman is standaard geïnstalleerd op RHEL 10 (Red Hat-standaard sinds RHEL 8); controle met podman run hello-world.",
+      "Docker installeren: dnf-plugins-core, repository docker-ce.repo toevoegen, pakketten installeren, sudo systemctl enable --now docker, controle met sudo docker run hello-world.",
+      "Opslag: Docker /var/lib/docker; Podman /var/lib/containers/storage (rootless: ~/.local/share/containers/storage)."
+    ],
+    "secties": [
+      {
+        "titel": "VM's klaarzetten (afspraken cursus)",
+        "items": [
+          {"type": "feit", "tekst": "1ste VM: server[je_initialen], IP 192.168.112.100, gebruiker student (sudo). 2de VM: client[je_initialen], IP 192.168.112.200, gebruiker student (sudo).", "belangrijk": true},
+          {"type": "feit", "tekst": "Schone RHEL 10-installatie in VMware Workstation, 1 netwerkkaart via NAT (VMnet8), registreren bij Red Hat, schijf minimaal 100 GB, snapshots maken, NAT-instellingen controleren (Edit, Virtual Network Editor), best reservekopie op ander medium.", "belangrijk": true}
+        ]
+      },
+      {
+        "titel": "Docker versus Podman en naast elkaar",
+        "items": [
+          {"type": "vergelijk", "links": "Docker", "rechts": "Podman", "rijen": [
+            ["centrale daemon, draait als root", "geen centrale daemon; containers = gewone processen van de gebruiker"],
+            ["rootless kan, maar vraagt extra configuratie", "standaard rootless (veiliger)"],
+            ["opslag: /var/lib/docker", "opslag: /var/lib/containers/storage (rootless: ~/.local/share/containers/storage)"],
+            ["niet standaard op RHEL 10", "standaard geïnstalleerd op RHEL 10 (Red Hat-standaard sinds RHEL 8)"]
+          ], "belangrijk": true},
+          {"type": "feit", "tekst": "Beide gebruiken dezelfde containerstandaarden (OCI). Podman kan Docker-images gebruiken; commando's grotendeels gelijk (je kan zelfs alias Docker=Podman instellen)."},
+          {"type": "feit", "tekst": "Naast elkaar installeren kan omdat Podman geen daemon gebruikt en containers als gewone processen draait.", "belangrijk": true},
+          {"type": "fout", "probleem": "Opgelet: image/container gemaakt met Docker is niet zichtbaar in Podman (of omgekeerd)", "oplossing": "Normaal: elk heeft eigen opslag en netwerkconfiguratie (tenzij je expliciet dezelfde instellingen forceert).", "belangrijk": true},
+          {"type": "cmd", "cmd": "ls /var/lib/containers/storage/", "uitleg": "bestaat na installatie RHEL 10 (Podman standaard aanwezig)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "ls /var/lib/docker", "uitleg": "bestaat niet na installatie RHEL 10 (Docker nog niet geïnstalleerd)", "toestel": "serverXX"}
+        ]
+      },
+      {
+        "titel": "Podman installeren en controleren",
+        "items": [
+          {"type": "cmd", "cmd": "sudo dnf -y install podman", "uitleg": "Podman installeren → blijkt al geïnstalleerd (standaard op RHEL 10)", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman run hello-world", "uitleg": "controle: juiste uitvoer = Podman werkt (zonder sudo, rootless)", "toestel": "serverXX", "belangrijk": true}
+        ]
+      },
+      {
+        "titel": "Docker installeren, starten en controleren",
+        "items": [
+          {"type": "feit", "tekst": "Docker ondersteunt RHEL 10 officieel; stappen volgens https://docs.docker.com/engine/install/rhel/."},
+          {"type": "cmd", "cmd": "sudo dnf -y install dnf-plugins-core", "uitleg": "stap 1: dnf-plugins-core installeren", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo", "uitleg": "stap 2: Docker-repository toevoegen", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo dnf install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin", "uitleg": "stap 3: Docker-pakketten installeren", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo systemctl enable --now docker", "uitleg": "stap 4: Docker-service starten (--now) en automatisch laten opstarten (enable)", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo docker run hello-world", "uitleg": "controle: juiste uitvoer = Docker werkt", "toestel": "serverXX", "belangrijk": true},
+          {"type": "fout", "probleem": "docker run hello-world zonder sudo werkt niet", "oplossing": "Let op: sudo is nodig! De Docker-daemon draait als root en student heeft standaard geen toegang tot die daemon.", "belangrijk": true}
+        ]
+      }
+    ],
+    "vragen": [
+      {"vraag": "Wat is het verschil tussen Podman en Docker?", "antwoord": "Docker heeft een centrale daemon die als root draait; Podman heeft geen daemon, containers zijn gewone processen van de gebruiker en draaien standaard rootless. Beide gebruiken OCI."},
+      {"vraag": "Waarom kunnen Docker en Podman naast elkaar op hetzelfde systeem staan?", "antwoord": "Omdat Podman geen daemon gebruikt en containers als gewone processen draait."},
+      {"vraag": "Zie je een Docker-image ook met podman images?", "antwoord": "Nee: elk heeft eigen opslag en netwerkconfiguratie (tenzij je expliciet dezelfde instellingen forceert)."},
+      {"vraag": "Waar bewaren Docker en Podman hun images en containers?", "antwoord": "Docker: /var/lib/docker. Podman: /var/lib/containers/storage, rootless: ~/.local/share/containers/storage."},
+      {"vraag": "Waarom bestaat /var/lib/docker niet na een verse installatie van RHEL 10?", "antwoord": "Docker is niet standaard geïnstalleerd; Podman wel (daarom bestaat /var/lib/containers/storage)."},
+      {"vraag": "Hoe ga je na of Podman aanwezig is en werkt?", "antwoord": "sudo dnf -y install podman (meldt dat het al geïnstalleerd is) en podman run hello-world."},
+      {"vraag": "Sinds welke RHEL-versie promoot Red Hat Podman als standaard?", "antwoord": "Sinds RHEL 8."},
+      {"vraag": "Welke stappen installeren Docker op RHEL 10?", "antwoord": "sudo dnf -y install dnf-plugins-core; sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo; sudo dnf install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; sudo systemctl enable --now docker."},
+      {"vraag": "Wat doet 'systemctl enable --now docker'?", "antwoord": "Start de Docker-service meteen (--now) en laat ze automatisch opstarten bij het booten (enable)."},
+      {"vraag": "Waarom is sudo nodig bij 'sudo docker run hello-world'?", "antwoord": "De Docker-daemon draait als root en de gebruiker student heeft standaard geen toegang tot die daemon."},
+      {"vraag": "Welke IP-adressen en gebruiker hebben de twee VM's?", "antwoord": "server 192.168.112.100, client 192.168.112.200; gebruiker student met sudo-rechten; netwerk NAT (VMnet8)."},
+      {"vraag": "Kan Docker ook rootless draaien?", "antwoord": "Ja, maar dat vraagt extra configuratie; Podman is standaard rootless."}
+    ]
+  }
+]

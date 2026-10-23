@@ -1,0 +1,1007 @@
+{
+ "_uitleg": "Commando's die op schermafbeeldingen staan, overgetypt. Sleutel = bestandsnaam van de afbeelding in de docx (hoofdstuk-volgnummer). build.py zet ze onder de afbeelding. toestel: zoals op de prompt in de afbeelding; '?' als het niet uit de afbeelding of de tekst volgt. Commando's van webpagina-schermafbeeldingen staan op serverXX (Andrii: 'alles op de RHEL VM, behalve de Windows host').",
+ "0-005": [
+  [
+   "podman image pull docker.io/library/nginx:latest",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "0-007": [
+  [
+   "nmcli device show ens160 | grep 'IP4.ADDRESS'",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "0-008": [
+  [
+   "podman run -d --name web -p 8080:80 nginx",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "0-010": [
+  [
+   "podman stop web",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "0-012": [
+  [
+   "podman start web",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "0-016": [
+  [
+   "podman build -t hallo-test .",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "0-017": [
+  [
+   "podman images",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "0-018": [
+  [
+   "cd",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run hallo-test",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "1-062": [
+  [
+   "ssh student@192.168.112.200",
+   "Windows host · CMD"
+  ]
+ ],
+ "2-005": [
+  [
+   "sudo dnf -y install podman",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "2-006": [
+  [
+   "podman run hello-world",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "3-005": [
+  [
+   "ping www.linux.org",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-020": [
+  [
+   "podman pull registry.access.redhat.com/ubi10/ubi:1789459582",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-015": [
+  [
+   "podman pull redhat/ubi10:latest",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman pull ubi10/ubi:latest",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman pull registry.access.redhat.com/ubi10/ubi:latest",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-023": [
+  [
+   "podman ps",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman ps -a",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run registry.access.redhat.com/ubi10/ubi:latest whoami",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-038": [
+  [
+   "podman run --init -d registry.access.redhat.com/ubi10/ubi:latest sleep infinity",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-024": [
+  [
+   "podman ps",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-025": [
+  [
+   "podman ps",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-026": [
+  [
+   "exit",
+   "Container · 594bc4040809"
+  ],
+  [
+   "podman ps",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-027": [
+  [
+   "podman run ubi10/ubi ls",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run -it ubi10/ubi",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "whoami",
+   "Container"
+  ],
+  [
+   "exit",
+   "Container"
+  ],
+  [
+   "podman run -d ubi10/ubi \\\ntail -f /dev/null",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman ps",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run -d ubi10/ubi",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run -dit ubi10/ubi",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run -d ubi10/ubi tail -f /dev/null",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-030": [
+  [
+   "ip addr",
+   "Container · 549bead12a05"
+  ]
+ ],
+ "4-032": [
+  [
+   "curl 192.168.112.100:8080",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-040": [
+  [
+   "podman run -it ubi10/ubi",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo podman run -it ubi10/ubi",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "ip a",
+   "Container"
+  ]
+ ],
+ "4-041": [
+  [
+   "echo '{ \"ip-forward-no-drop\": true }' | sudo tee /etc/docker/daemon.json",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo systemctl restart docker",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo iptables -P FORWARD ACCEPT",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-043": [
+  [
+   "podman run -i -t -d ubi10/ubi",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run -it -d ubi10/ubi",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run -d ubi10/ubi",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman exec -it 54 bash",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-042": [
+  [
+   "podman run -d ubi10/ubi sleep infinity",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman exec -it b2 bash",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "dnf -y install bind bind-utils nano",
+   "Container"
+  ],
+  [
+   "named -g -u named",
+   "Container"
+  ],
+  [
+   "podman stop b2",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman commit b2 contdns",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman images",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run -p 53:53/udp -p 53:53/tcp -d contdns",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman save -o contdns.tar localhost/contdns:latest",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo podman load -i /home/student/contdns.tar",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo podman run -p 53:53/udp -p 53:53/tcp -d contdns",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "nslookup www.google.be 192.168.112.100",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo systemctl restart docker",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo podman exec -it dc bash",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo iptables -P FORWARD ACCEPT",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-034": [
+  [
+   "podman run -it -p 8080:80 ubi10/ubi /bin/bash",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "dnf install -y httpd",
+   "Container"
+  ],
+  [
+   "/usr/sbin/httpd",
+   "Container"
+  ],
+  [
+   "curl 192.168.112.100:8080",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "curl 192.168.112.100",
+   "Container"
+  ],
+  [
+   "podman port 549",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman ps -a",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-039": [
+  [
+   "podman images",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo podman images",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman save -o contdns.tar localhost/contdns:latest",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo podman load -i /home/student/contdns.tar",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-044": [
+  [
+   "podman ps -a",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-045": [
+  [
+   "podman run -dit ubi10/ubi",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run -d ubi10/ubi-init",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-046": [
+  [
+   "podman run -d <image>",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run -d ubi10/ubi",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run -it -d ubi10/ubi",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run -d ubi10/ubi-init",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman start <id>",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman exec -it <id> bash",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman ps",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman ps -a",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman ps -a -q",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman images",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman port <id>",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman stop <id>",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman stop --all",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman kill <id>",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman rm <id>",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman rm <id> -f",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman rm --all",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman container prune",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman image rm <naam>",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman image rm --all -f",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run --init -d <image> sleep infinity",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-053": [
+  [
+   "podman run contdns",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run contdns ls",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run contdns bash",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run --entrypoint bash contdns",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-048": [
+  [
+   "podman run -d --name contdns --hostname contdns -p 1053:53/udp -p 1053:53/tcp contdns /usr/sbin/named -g -u named -c /etc/named.conf",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-057": [
+  [
+   "HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD pgrep named >/dev/null || exit 1",
+   "Bestandsinhoud"
+  ],
+  [
+   "podman ps",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman inspect --format '{{.State.Health.Status}}' contdns",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-058": [
+  [
+   "podman ps",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-059": [
+  [
+   "podman build --format=docker -t contdns .",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-064": [
+  [
+   "docker tag local-image:tagname new-repo:tagname",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "docker push new-repo:tagname",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-066": [
+  [
+   "docker tag local-image:tagname new-repo:tagname",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "docker push new-repo:tagname",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-069": [
+  [
+   "podman login docker.io",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman tag contdns:latest docker.io/<gebruiker>/contdns:latest",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman push docker.io/<gebruiker>/contdns:latest",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman pull docker.io/<gebruiker>/contdns:latest",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "4-082": [
+  [
+   "curl -fsS http://localhost/",
+   "Cockpit · veld Command (Health check)"
+  ]
+ ],
+ "4-067": [
+  [
+   "podman push docker.io/stijnjacobspxl/contdns:latest",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-005": [
+  [
+   "ping www.google.be",
+   "Container · C1"
+  ],
+  [
+   "curl www.google.be",
+   "Container · C1"
+  ]
+ ],
+ "5-038": [
+  [
+   "sudo podman exec -it containerX /bin/sh -c \"ip link show\"",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-046": [
+  [
+   "curl http://192.168.112.80",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-047": [
+  [
+   "ping -c 1 192.168.112.80",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo ip link delete ipvlan_host",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-050": [
+  [
+   "podman run -v data:/var/lib/mysql",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-054": [
+  [
+   "sudo podman run -d --name cont1 -v /srv/contdata:/data:Z ubi10/ubi-init",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-039": [
+  [
+   "sudo podman exec -it containerX /bin/sh -c \"ip link show\"",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-006": [
+  [
+   "curl 127.0.0.1",
+   "Container · C1"
+  ],
+  [
+   "curl localhost",
+   "Container · C1"
+  ],
+  [
+   "curl 192.168.112.100",
+   "Container · C1"
+  ],
+  [
+   "curl http://host.containers.internal",
+   "Container"
+  ],
+  [
+   "curl 192.168.112.2",
+   "Container"
+  ],
+  [
+   "curl 11.11.11.11",
+   "Container"
+  ]
+ ],
+ "5-011": [
+  [
+   "curl 192.168.112.100:8080",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "curl 192.168.112.100",
+   "RHEL VM · serverXX of clientXX"
+  ],
+  [
+   "sudo systemctl reload firewalld",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-015": [
+  [
+   "podman network ls",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman network create --subnet 192.168.5.0/24 --gateway 192.168.5.1 mynat",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman network ls",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-016": [
+  [
+   "podman network inspect mynat",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-017": [
+  [
+   "ip a",
+   "Container · C1"
+  ]
+ ],
+ "5-018": [
+  [
+   "ping -c 1 C2",
+   "Container · C1"
+  ]
+ ],
+ "5-020": [
+  [
+   "podman network create --subnet 192.168.5.0/24 --gateway 192.168.5.1 mynat",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "ip a",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-021": [
+  [
+   "podman network inspect mynat2",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-022": [
+  [
+   "podman exec -it myhttpd ip a",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-023": [
+  [
+   "curl 192.168.112.100:8080",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "curl 192.168.112.100:1234",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-025": [
+  [
+   "sudo podman network inspect podman",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-031": [
+  [
+   "sudo podman exec myhttpd ip addr show",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-032": [
+  [
+   "ip addr show",
+   "Container · myhttpd"
+  ],
+  [
+   "curl localhost",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-027": [
+  [
+   "sudo podman run -d --name C10 ubi10/ubi-init",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-040": [
+  [
+   "sudo ip link add macvlan_host link ens160 type macvlan mode bridge",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo ip addr add 192.168.112.22/24 dev macvlan_host",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo ip link set macvlan_host up",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-048": [
+  [
+   "sudo ip link add ipvlan_host link ens160 type ipvlan",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo ip addr add 192.168.112.22/24 dev ipvlan_host",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo ip link set ipvlan_host up",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-053": [
+  [
+   "podman run -d --name conta -v mijn_data_volume:/test ubi10/ubi-init",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman rm conta -f",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman volume rm $(podman volume ls -q)",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-036": [
+  [
+   "ping -c 1 www.google.be",
+   "Container · contiis3"
+  ]
+ ],
+ "5-042": [
+  [
+   "ip route",
+   "Container · contiis4"
+  ]
+ ],
+ "5-044": [
+  [
+   "ping -c 1 www.google.be",
+   "Container · contiis4"
+  ]
+ ],
+ "5-051": [
+  [
+   "podman volume inspect mijn_data_volume2",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-052": [
+  [
+   "sudo podman volume inspect mijn_data_volume3",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "5-055": [
+  [
+   "df -h /tijdelijk",
+   "Container · mijn_container"
+  ]
+ ],
+ "6-003": [
+  [
+   "podman login registry.redhat.io",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman pull registry.redhat.io/ubi10/nginx-126:1791490937",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-005": [
+  [
+   "podman inspect ubi10/nginx-126",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-010": [
+  [
+   "podman search nginx",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-014": [
+  [
+   "sudo podman run -d --name nginx -p 8080:8080 -v /wwwdata/html:/opt/app-root/src:Z ubi10/nginx-126",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-016": [
+  [
+   "podman run -d -e MYSQL_USER=student -e MYSQL_PASSWORD=abc -e MYSQL_DATABASE=testdb -p 3306:3306 rhel10/mariadb-1011",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "dnf install mariadb",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "mysql -h 127.0.0.1 -P 3306 -u student -p testdb",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-023": [
+  [
+   "podman volume create mysql-data",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman volume create wp-content",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman network create wpnet",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-004": [
+  [
+   "podman pull registry.access.redhat.com/ubi10/nginx-126:1791490937",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-013": [
+  [
+   "ls -lZ /wwwdata/html",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman run -d --name nginx -p 8080:8080 -v /wwwdata:/opt/app-root/src:Z ubi9/nginx-126 nginx -g \"daemon off;\"",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "curl -Lk 127.0.0.1:8080",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-015": [
+  [
+   "podman run -d -e MYSQL_USER=user -e MYSQL_PASSWORD=pass -e MYSQL_DATABASE=db -p 3306:3306 rhel10/mariadb-118",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-020": [
+  [
+   "docker network create some-network",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "docker run --detach --network some-network --name some-mariadb --env MARIADB_USER=example-user --env MARIADB_PASSWORD=my_cool_secret --env MARIADB_ROOT_PASSWORD=my-secret-pw mariadb:latest",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "docker run --detach --network some-network --name some-application --env APP_DB_HOST=some-mariadb --env APP_DB_USER=example-user --env APP_DB_PASSWD=my_cool_secret some-application",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "7-002": [
+  [
+   "choco install vscode",
+   "Windows host · PowerShell"
+  ],
+  [
+   "choco feature enable -n allowGlobalConfirmation",
+   "Windows host · PowerShell"
+  ]
+ ],
+ "8-001": [
+  [
+   "podman network create wpnet",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman volume create mysql-data",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman volume create wp-content",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman-compose up",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "8-002": [
+  [
+   "pip3 install podman-compose",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "sudo dnf install podman-compose",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-021": [
+  [
+   "docker run --name some-mariadb -v /my/custom:/etc/mysql/conf.d --rm mariadb:latest my_print_defaults --mariadbd",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-006": [
+  [
+   "podman inspect ubi10/nginx-126 | jq",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-007": [
+  [
+   "podman inspect --format '{{json .Config}}' ubi10/nginx-126 | jq",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-008": [
+  [
+   "podman inspect --format '{{json .Config.Labels}}' ubi10/nginx-126 | jq",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-009": [
+  [
+   "podman inspect --format '{{json .Config.Labels.help}}' ubi10/nginx-126 | jq",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "6-012": [
+  [
+   "podman pull ubi9/nginx-126",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "git clone https://github.com/sclorg/nginx-container.git nginx-container",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "cd nginx-container/examples/1.26/",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "8-003": [
+  [
+   "sudo podman-compose up",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "podman-compose up",
+   "RHEL VM · serverXX"
+  ]
+ ],
+ "2-004": [
+  [
+   "ls /var/lib/containers/storage/",
+   "RHEL VM · serverXX"
+  ],
+  [
+   "ls /var/lib/docker",
+   "RHEL VM · serverXX"
+  ]
+ ]
+}

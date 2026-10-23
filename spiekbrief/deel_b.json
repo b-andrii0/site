@@ -1,0 +1,1570 @@
+[
+  {
+    "hoofdstuk": 3,
+    "titel": "Beheer op afstand",
+    "kern": [
+      "IP-conflict: geef de server nooit 192.168.112.1, want VMware geeft de host (VMnet8) in het NAT-subnet .1 en de gateway .2; de server hoort op 192.168.112.100/24.",
+      "SSH = veilig (versleuteld) inloggen op een andere computer: opdrachten uitvoeren, bestanden kopiëren, interactieve shells. Op RHEL staat sshd standaard al aan en open in de firewall.",
+      "Zonder wachtwoord: sleutelpaar maken met ssh-keygen op de client, publieke sleutel naar de server met ssh-copy-id.",
+      "Docker op afstand vroeger via TCP-poort 2375 (erg onveilig = root-toegang voor iedereen), vandaag via SSH.",
+      "Docker-context = Docker het adres van de server geven (ssh://student@192.168.112.100) zodat elk docker-commando op serverXX uitgevoerd wordt; student moet in groep docker zitten (geen sudo via context).",
+      "Podman op afstand: podman.socket van student inschakelen (+ enable-linger) op de server en op de client podman system connection add."
+    ],
+    "secties": [
+      {
+        "titel": "IP-conflict herkennen en oplossen (nmcli)",
+        "items": [
+          {
+            "type": "cmd",
+            "cmd": "sudo nmcli con show",
+            "uitleg": "verbindingsnamen opvragen: ens160 (netwerkkaart), docker0 (bridge van Docker), lo (loopback)",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo nmcli con mod ens160 ipv4.addresses 192.168.112.1/24",
+            "uitleg": "test: verkeerd IP-adres instellen (geeft conflict met de host)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo nmcli con down ens160 && sudo nmcli con up ens160",
+            "uitleg": "netwerkverbinding herstarten",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "fout",
+            "probleem": "Fout: Activeren van verbinding is mislukt: Reserveren van de IP-configuratie is mislukt (geen beschikbare adressen, time-out, enz.)",
+            "oplossing": "IP-conflict: 192.168.112.1 is al in gebruik door de host (VMware Network Adapter VMnet8) → server terug 192.168.112.100/24 geven"
+          },
+          {
+            "type": "cmd",
+            "cmd": "nmcli -g IP4.ADDRESS dev show ens160",
+            "uitleg": "IP-adres van ens160 opvragen; geen uitvoer = door het conflict niet toegewezen",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo nmcli con mod ens160 ipv4.addresses 192.168.112.100/24",
+            "uitleg": "juist IP-adres terugzetten",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo nmcli con up ens160",
+            "uitleg": "verbinding activeren → 'Verbinding is met succes geactiveerd'",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "feit",
+            "tekst": "VMware NAT (VMnet8): host krijgt standaard het adres eindigend op .1, de gateway .2. Komt door 'Connect a host virtual adapter to this network' (Virtual Network Editor > Change Settings).",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "Na de oplossing: server kan weer op internet en ping vanaf de host (Windows) naar de server lukt."
+          }
+        ]
+      },
+      {
+        "titel": "SSH-server en verbinden met wachtwoord",
+        "items": [
+          {
+            "type": "cmd",
+            "cmd": "sudo dnf install -y openssh-server",
+            "uitleg": "SSH-server installeren (staat normaal al geïnstalleerd en actief)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo systemctl start sshd",
+            "uitleg": "SSH-service starten",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo systemctl enable sshd",
+            "uitleg": "SSH-service automatisch starten bij opstarten",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo firewall-cmd --permanent --add-service=ssh --zone=public",
+            "uitleg": "firewall permanent openen voor SSH (op RHEL standaard al open)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo firewall-cmd --reload",
+            "uitleg": "firewallregels herladen",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "ssh student@192.168.112.100",
+            "uitleg": "vanaf de client inloggen op de server; wachtwoord van student op de server ingeven",
+            "toestel": "clientXX",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "Eerste keer: 'The authenticity of host ... can't be established. ED25519 key fingerprint is SHA256:...' → yes typen → 'Permanently added ... to the list of known hosts'. De server is nog onbekend; zijn host key wordt bewaard in known hosts.",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "exit",
+            "uitleg": "terug naar clientXX ('Connection to 192.168.112.100 closed.')",
+            "toestel": "serverXX"
+          }
+        ]
+      },
+      {
+        "titel": "SSH zonder wachtwoord (sleutelpaar)",
+        "items": [
+          {
+            "type": "cmd",
+            "cmd": "ssh-keygen",
+            "uitleg": "sleutelpaar aanmaken op de client; 3× <Enter> (standaardbestand, geen passphrase)",
+            "toestel": "clientXX",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "Private sleutel: /home/student/.ssh/id_rsa — publieke sleutel: /home/student/.ssh/id_rsa.pub (RSA 3072)",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "ssh-copy-id student@192.168.112.100",
+            "uitleg": "publieke sleutel naar het account op de server kopiëren (laatste keer wachtwoord); 'Number of key(s) added: 1'",
+            "toestel": "clientXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "ssh student@192.168.112.100",
+            "uitleg": "nu inloggen zonder wachtwoord",
+            "toestel": "clientXX"
+          }
+        ]
+      },
+      {
+        "titel": "Docker- en Podman-commando's via ssh",
+        "items": [
+          {
+            "type": "feit",
+            "tekst": "Vroeger: Docker-daemon openzetten via TCP-poort 2375 → erg onveilig (iedereen die de poort bereikt krijgt root-toegang). Vandaag: SSH.",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "ssh student@192.168.112.100 \"podman version\"",
+            "uitleg": "commando meegeven aan ssh: Podman op de server uitvoeren (werkt zonder sudo)",
+            "toestel": "clientXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "ssh student@192.168.112.100 \"docker version\"",
+            "uitleg": "werkt niet voor het Server-deel: permission denied",
+            "toestel": "clientXX"
+          },
+          {
+            "type": "fout",
+            "probleem": "permission denied while trying to connect to the docker API at unix:///var/run/docker.sock",
+            "oplossing": "de socket /var/run/docker.sock is enkel toegankelijk voor root en groep docker → sudo nodig (of student in groep docker)"
+          },
+          {
+            "type": "fout",
+            "probleem": "sudo: a terminal is required to read the password; ... sudo: een wachtwoord is verplicht",
+            "oplossing": "sudo heeft op de remote host geen interactieve terminal → ssh -t gebruiken"
+          },
+          {
+            "type": "cmd",
+            "cmd": "ssh -t student@192.168.112.100 \"sudo docker version\"",
+            "uitleg": "-t forceert een interactieve terminal zodat sudo het wachtwoord kan vragen",
+            "toestel": "clientXX",
+            "belangrijk": true
+          },
+          {
+            "type": "optie",
+            "naam": "-t (ssh)",
+            "uitleg": "forceert een interactieve terminal (TTY) op de remote host"
+          }
+        ]
+      },
+      {
+        "titel": "Docker-context (Docker op afstand bedienen)",
+        "items": [
+          {
+            "type": "feit",
+            "tekst": "Context = Docker het adres van de server geven en zeggen dat het die moet gebruiken. Daarna gaat elk docker-commando via SSH naar serverXX. Terug lokaal: docker context use default.",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "Via een context kan je geen sudo gebruiken → student moet lid zijn van groep docker op de server.",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo usermod -aG docker student",
+            "uitleg": "student toevoegen aan groep docker; daarna uitloggen en opnieuw inloggen",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "groups",
+            "uitleg": "controle: 'student wheel docker'",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "docker ps",
+            "uitleg": "werkt nu zonder sudo",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "feit",
+            "tekst": "Opgelet: lid van groep docker = in de praktijk root-rechten op de server (daemon draait als root). Enkel vertrouwde gebruikers toevoegen.",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo",
+            "uitleg": "Docker-repository toevoegen op de client",
+            "toestel": "clientXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo dnf install -y docker-ce-cli",
+            "uitleg": "enkel de Docker-client (CLI) installeren, geen daemon",
+            "toestel": "clientXX",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "Voorwaarde: vanaf de client zonder wachtwoord kunnen inloggen op de server (ssh-keygen + ssh-copy-id)."
+          },
+          {
+            "type": "cmd",
+            "cmd": "docker context create serverXX --docker \"host=ssh://student@192.168.112.100\"",
+            "uitleg": "context aanmaken die naar de server wijst",
+            "toestel": "clientXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "docker context ls",
+            "uitleg": "contexts tonen; sterretje (*) = actieve context (default = unix:///var/run/docker.sock)",
+            "toestel": "clientXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "docker context use serverXX",
+            "uitleg": "overschakelen: alle docker-commando's lopen nu op serverXX",
+            "toestel": "clientXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "docker version",
+            "uitleg": "bij Server zie je de Docker Engine van serverXX",
+            "toestel": "clientXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "docker run hello-world",
+            "uitleg": "test: container draait op serverXX",
+            "toestel": "clientXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "docker --context serverXX ps",
+            "uitleg": "eenmalig een andere context gebruiken zonder over te schakelen",
+            "toestel": "clientXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "docker -H ssh://student@192.168.112.100 ps",
+            "uitleg": "hetzelfde zonder context, met optie -H",
+            "toestel": "clientXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "docker context use default",
+            "uitleg": "terug naar de standaardcontext (eigen computer)",
+            "toestel": "clientXX",
+            "belangrijk": true
+          }
+        ]
+      },
+      {
+        "titel": "Podman via SSH (podman system connection)",
+        "items": [
+          {
+            "type": "feit",
+            "tekst": "Podman werkt rootless → geen extra groep nodig. Wel moet de Podman-socket van student actief zijn: Podman heeft geen daemon, de socket is het speciale bestand waarmee de client via SSH verbindt.",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "systemctl --user enable --now podman.socket",
+            "uitleg": "Podman-socket van student inschakelen en meteen starten (zonder sudo, --user)",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo loginctl enable-linger student",
+            "uitleg": "socket blijft actief ook als student niet ingelogd is",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman system connection add serverXX ssh://student@192.168.112.100",
+            "uitleg": "verbinding naar de server toevoegen",
+            "toestel": "clientXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman system connection list",
+            "uitleg": "verbindingen tonen; URI ssh://student@192.168.112.100:22/run/user/1000/podman/podman.sock",
+            "toestel": "clientXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman --connection serverXX ps",
+            "uitleg": "Podman-commando op de server uitvoeren",
+            "toestel": "clientXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman system connection default serverXX",
+            "uitleg": "verbinding als standaard instellen → --connection niet meer nodig",
+            "toestel": "clientXX"
+          },
+          {
+            "type": "vergelijk",
+            "links": "Docker op afstand",
+            "rechts": "Podman op afstand",
+            "rijen": [
+              [
+                "docker context create / use / ls",
+                "podman system connection add / list / default"
+              ],
+              [
+                "student in groep docker (geen sudo via context)",
+                "geen extra groep (rootless)"
+              ],
+              [
+                "daemon draait altijd (root)",
+                "podman.socket van student + enable-linger"
+              ],
+              [
+                "docker --context serverXX ps of -H ssh://...",
+                "podman --connection serverXX ps"
+              ],
+              [
+                "client: enkel docker-ce-cli",
+                "client: podman"
+              ]
+            ]
+          }
+        ]
+      }
+    ],
+    "vragen": [
+      {
+        "vraag": "Waarom mag je de server niet 192.168.112.1 geven?",
+        "antwoord": "IP-conflict: VMware geeft de host (VMware Network Adapter VMnet8) in het NAT-subnet het adres .1 (gateway .2). Verbinding activeren mislukt."
+      },
+      {
+        "vraag": "Hoe los je het IP-conflict op?",
+        "antwoord": "sudo nmcli con mod ens160 ipv4.addresses 192.168.112.100/24 en daarna sudo nmcli con up ens160."
+      },
+      {
+        "vraag": "Wat doet SSH?",
+        "antwoord": "Veilig (versleuteld) inloggen op een andere computer: opdrachten uitvoeren, bestanden kopiëren, interactieve shells openen."
+      },
+      {
+        "vraag": "Hoe zorg je dat sshd nu en na een herstart draait?",
+        "antwoord": "sudo systemctl start sshd en sudo systemctl enable sshd (firewall: firewall-cmd --permanent --add-service=ssh + --reload)."
+      },
+      {
+        "vraag": "Wat betekent de melding 'The authenticity of host ... can't be established' bij de eerste ssh?",
+        "antwoord": "De host key (ED25519-fingerprint) van de server is nog onbekend; met yes wordt hij permanent toegevoegd aan de known hosts."
+      },
+      {
+        "vraag": "Hoe log je in zonder wachtwoord?",
+        "antwoord": "Op de client ssh-keygen (id_rsa + id_rsa.pub in ~/.ssh), dan ssh-copy-id student@192.168.112.100."
+      },
+      {
+        "vraag": "Waarom gebruik je geen TCP-poort 2375 meer voor Docker op afstand?",
+        "antwoord": "Erg onveilig: iedereen die de poort bereikt krijgt in de praktijk root-toegang. Je gebruikt SSH."
+      },
+      {
+        "vraag": "Waarom faalt ssh student@192.168.112.100 \"docker version\"?",
+        "antwoord": "permission denied: /var/run/docker.sock is enkel voor root en groep docker."
+      },
+      {
+        "vraag": "Waarom faalt ssh ... \"sudo docker version\" en hoe los je het op?",
+        "antwoord": "sudo heeft geen interactieve terminal om het wachtwoord te vragen; oplossen met ssh -t."
+      },
+      {
+        "vraag": "Wat is een Docker-context?",
+        "antwoord": "Een ingesteld adres van een Docker-host (bv. ssh://student@192.168.112.100); na docker context use gaan alle docker-commando's via SSH naar die server."
+      },
+      {
+        "vraag": "Welke voorbereiding is nodig op server en client voor een Docker-context?",
+        "antwoord": "Server: sudo usermod -aG docker student (+ opnieuw inloggen). Client: docker-ce-cli installeren en SSH zonder wachtwoord."
+      },
+      {
+        "vraag": "Waarom is lidmaatschap van de groep docker gevaarlijk?",
+        "antwoord": "Het geeft in de praktijk root-rechten op de server, want de Docker-daemon draait als root."
+      },
+      {
+        "vraag": "Hoe zie je welke context actief is en hoe keer je terug naar je eigen computer?",
+        "antwoord": "docker context ls (sterretje) — docker context use default."
+      },
+      {
+        "vraag": "Welke twee commando's zijn nodig op de server voor Podman op afstand?",
+        "antwoord": "systemctl --user enable --now podman.socket en sudo loginctl enable-linger student."
+      },
+      {
+        "vraag": "Hoe gebruik je Podman op de server vanaf de client?",
+        "antwoord": "podman system connection add serverXX ssh://student@192.168.112.100, daarna podman --connection serverXX ps (of default instellen met podman system connection default serverXX)."
+      }
+    ]
+  },
+  {
+    "hoofdstuk": 4,
+    "titel": "Containers en container images",
+    "kern": [
+      "Volledige imagenaam = registry / naam (repository) : tag, bv. registry.access.redhat.com/ubi10/ubi:latest. Zonder registry kiest Docker altijd docker.io; Podman laat je kiezen (tenzij een alias bestaat).",
+      "Drie registries: registry.access.redhat.com (Red Hat, zonder login), registry.redhat.io (Red Hat, login nodig), docker.io (Docker Hub). Gebruik ubi10/ubi:latest.",
+      "Image = lagen; bestaande lagen worden hergebruikt (\"skipped: already exists\"). Een container draait zolang PID 1 draait.",
+      "podman run (voorgrond) / -it (interactief) / -d (detached); beheren met ps, logs, exec, stop, start, kill, rm; poorten koppelen met -p HOST:CONTAINER (rootless geen poorten < 1024).",
+      "Images maken: interactief + podman commit, of met een Containerfile (FROM, RUN, COPY, ENTRYPOINT, CMD, STOPSIGNAL, HEALTHCHECK) en podman build --format=docker -t naam . (Podman gebruikt Buildah).",
+      "Image delen: podman login docker.io → podman tag → podman push → podman pull. Cockpit (poort 9090 + cockpit-podman) = webinterface voor containers en images."
+    ],
+    "secties": [
+      {
+        "titel": "Docker Hub, UBI en imagenamen",
+        "items": [
+          {
+            "type": "feit",
+            "tekst": "Docker Hub-account: https://hub.docker.com → Sign Up → e-mail, gebruikersnaam, wachtwoord (of GitHub/Google) → verificatiecode uit de e-mail ingeven.",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "Zoeken: 'redhat' in de zoekbalk → filter op Red Hat, Inc. → 'ubi10' (RHEL 10) / 'ubi9' (RHEL 9) → klik image → Tags.",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "UBI = Universal Base Image: RHEL 10 als container image, gratis en vrij verspreidbaar, ook zonder Red Hat-account (ook in commerciële projecten).",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "Vier varianten: redhat/ubi10 (standaard), redhat/ubi10-init (met systemd als init), redhat/ubi10-minimal (afgeslankt), redhat/ubi10-micro (extreem minimaal)."
+          },
+          {
+            "type": "feit",
+            "tekst": "Tag = label dat naar een specifieke versie/variant verwijst: <image-naam>:<tag>. Nieuwste versie = latest.",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "Volledige imagenaam = 3 delen: registry, naam (repository) en tag. Bv. docker.io/redhat/ubi10:latest",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "Red Hat-catalogus: https://catalog.redhat.com/en/search?searchType=containers → zoek 'ubi' of 'Red Hat Universal Base Image 10' → Get this image → Unauthenticated. Daar staat een specifieke tag (1789459582)."
+          }
+        ]
+      },
+      {
+        "titel": "Image downloaden met Docker en Podman",
+        "items": [
+          {
+            "type": "cmd",
+            "cmd": "sudo gpasswd -d student docker",
+            "uitleg": "student uit groep docker halen (geldt pas na opnieuw inloggen; controle met groups)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "docker pull redhat/ubi10:latest",
+            "uitleg": "faalt zonder groep docker",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "fout",
+            "probleem": "permission denied while trying to connect to the docker API at unix:///var/run/docker.sock",
+            "oplossing": "student heeft geen toegang tot de Docker-daemon → sudo gebruiken"
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo docker pull redhat/ubi10:latest",
+            "uitleg": "Docker vult korte naam aan tot docker.io/redhat/ubi10:latest (zonder registry altijd Docker Hub)",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "Docker bewaart images in submappen van /var/lib/docker."
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman pull redhat/ubi10:latest",
+            "uitleg": "geen sudo nodig; korte naam → Podman vraagt uit welke registry (registry.access.redhat.com / registry.redhat.io / docker.io)",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "fout",
+            "probleem": "unable to retrieve auth token: invalid username/password: unauthorized: Please login to the Red Hat Registry",
+            "oplossing": "registry.redhat.io vraagt een login → podman login registry.redhat.io"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman login registry.redhat.io",
+            "uitleg": "aanmelden met je Red Hat-account",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "fout",
+            "probleem": "reading manifest latest in registry.redhat.io/redhat/ubi10: unauthorized: access to the requested resource is not authorized",
+            "oplossing": "ingelogd, maar redhat/ubi10 bestaat niet op registry.redhat.io; daar heet het ubi10/ubi"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman pull ubi10/ubi:latest",
+            "uitleg": "lukt zonder vraag: alias (/etc/containers/registries.conf.d/001-rhel-shortnames.conf) → registry.access.redhat.com",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman pull registry.access.redhat.com/ubi10/ubi:latest",
+            "uitleg": "registry meteen in de naam: Podman hoeft niets te kiezen",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman pull ubi10:latest",
+            "uitleg": "ubi10 = alias van ubi10/ubi (zelfde image-ID)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "feit",
+            "tekst": "Tip: gebruik registry.access.redhat.com als je geen Red Hat-login hebt. Gebruik bij voorkeur ubi10/ubi:latest (officiële naam, werkt op beide Red Hat-registries; registry.redhat.io na login).",
+            "belangrijk": true
+          },
+          {
+            "type": "vergelijk",
+            "links": "Docker",
+            "rechts": "Podman",
+            "rijen": [
+              [
+                "sudo nodig (of groep docker)",
+                "geen sudo (rootless)"
+              ],
+              [
+                "korte naam → altijd docker.io",
+                "korte naam → vraagt registry, tenzij alias"
+              ],
+              [
+                "images in /var/lib/docker",
+                "image van gewone user niet zichtbaar voor root en omgekeerd"
+              ]
+            ]
+          },
+          {
+            "type": "vergelijk",
+            "links": "Registry",
+            "rechts": "Kenmerk",
+            "rijen": [
+              [
+                "registry.access.redhat.com",
+                "officieel Red Hat, zonder login, onderhouden en ondersteunde images"
+              ],
+              [
+                "registry.redhat.io",
+                "Red Hat, inloggen met Red Hat-account; image heet ubi10/ubi"
+              ],
+              [
+                "docker.io",
+                "Docker Hub; door Red Hat gesynchroniseerd, soms minder up-to-date, niet altijd de meest betrouwbare/ondersteunde bron"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "titel": "Lagen en image inspect",
+        "items": [
+          {
+            "type": "feit",
+            "tekst": "Een image bestaat uit lagen; elke laag bevat wijzigingen t.o.v. de laag eronder. Lagen die al op je systeem staan worden hergebruikt; enkel nieuwe/gewijzigde lagen worden gedownload ('Copying blob ... skipped: already exists').",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman image inspect ubi10/ubi:latest",
+            "uitleg": "gedetailleerde info: Id, RootFS/Layers, Architecture (amd64), Os (linux), Entrypoint, Cmd",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "UBI-basisimage = 1 laag. ubi10/httpd-24 = 3 lagen, nginx = 7 lagen. Lagen worden gedeeld tussen images als er geen verschil is."
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman image inspect nginx:latest | grep -A2 Entrypoint",
+            "uitleg": "Entrypoint van nginx: /docker-entrypoint.sh",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman image inspect nginx:latest | grep -A4 Cmd",
+            "uitleg": "Cmd van nginx: nginx -g \"daemon off;\" (voorgrond)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "feit",
+            "tekst": "Entrypoint = vast deel dat altijd wordt uitgevoerd. Cmd = standaardcommando; met Entrypoint als argument erachter. Commando na de imagenaam bij podman run vervangt de volledige Cmd.",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman run ubi10/httpd-24 ls",
+            "uitleg": "ls vervangt Cmd (/usr/bin/run-httpd) → geen webserver, container stopt na ls",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "feit",
+            "tekst": "Een container blijft draaien zolang zijn hoofdproces (PID 1) draait. Stopt PID 1, dan stopt de container.",
+            "belangrijk": true
+          }
+        ]
+      },
+      {
+        "titel": "Containers starten: voorgrond, -it, -d",
+        "items": [
+          {
+            "type": "cmd",
+            "cmd": "podman run ubi10/ubi:latest",
+            "uitleg": "nieuwe container starten (downloadt image indien nodig); niets te doen → stopt onmiddellijk",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman run ubi10/ubi:latest whoami",
+            "uitleg": "voert whoami uit (root) als proces in de container, zonder shell; daarna stopt de container",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman run -it ubi10/ubi:latest",
+            "uitleg": "interactieve container: blijft draaien en je zit in de console van de container",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "optie",
+            "naam": "-i",
+            "uitleg": "interactive: houdt de standaardinvoer open (houdt de container in leven)"
+          },
+          {
+            "type": "optie",
+            "naam": "-t",
+            "uitleg": "geeft een terminal (TTY) → gewone shell met prompt; -it = -i + -t"
+          },
+          {
+            "type": "cmd",
+            "cmd": "exit",
+            "uitleg": "interactieve container verlaten → bash stopt → container stopt",
+            "toestel": "container"
+          },
+          {
+            "type": "feit",
+            "tekst": "Hostname van de container = container-ID (ook zichtbaar na @ in de prompt, cat /etc/hostname)."
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman run -d ubi10/ubi:latest tail -f /dev/null",
+            "uitleg": "detached container: draait op de achtergrond; tail -f /dev/null blijft eindeloos draaien zonder output",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "optie",
+            "naam": "-d / --detach",
+            "uitleg": "container op de achtergrond starten"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman run -i -t -d ubi10/ubi",
+            "uitleg": "detached én blijft draaien (bash = hoofdproces krijgt invoer + TTY); gebruik best altijd -i en -t",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman run -d ubi10/ubi",
+            "uitleg": "zonder -it: bash krijgt geen invoer en geen TTY → sluit meteen af → container stopt onmiddellijk",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "vergelijk",
+            "links": "Modus",
+            "rechts": "Gedrag",
+            "rijen": [
+              [
+                "voorgrond (podman run image [cmd])",
+                "voert taak uit en stopt"
+              ],
+              [
+                "interactief (-it)",
+                "blijft draaien, je krijgt direct de terminal in de container"
+              ],
+              [
+                "detached (-d)",
+                "draait op de achtergrond, geen directe interactie via terminal"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "titel": "Containers opvolgen en beheren",
+        "items": [
+          {
+            "type": "cmd",
+            "cmd": "podman ps",
+            "uitleg": "enkel actieve containers",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman ps -a",
+            "uitleg": "alle containers (actief + gestopt)",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman ps -a -q",
+            "uitleg": "enkel de ID's van alle containers",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman start 3f9fa2c21088",
+            "uitleg": "gestopte container opnieuw starten; een uniek deel van de ID (podman start 3f) of de naam volstaat",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman logs 3f",
+            "uitleg": "stdout en stderr van de container sinds het opstarten",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman exec -it 03 /bin/bash",
+            "uitleg": "shell openen in een draaiende container; exit → container blijft draaien",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman exec -it 54 ip addr",
+            "uitleg": "commando in de container uitvoeren vanaf de containerhost",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman stop 54",
+            "uitleg": "SIGTERM naar PID 1, na 10 s SIGKILL; container blijft bestaan (stopped)",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman kill 6e",
+            "uitleg": "stuurt onmiddellijk SIGKILL",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman rm 45",
+            "uitleg": "container verwijderen (moet gestopt zijn)",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "fout",
+            "probleem": "Error: cannot remove container ... as it is running - running or paused containers cannot be removed without force",
+            "oplossing": "eerst stoppen: podman stop 45; podman rm 45 (of podman rm <id> -f)"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman stop $(podman ps -a -q)",
+            "uitleg": "alle containers stoppen via command substitution (= podman stop --all)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman stop --all",
+            "uitleg": "alle containers stoppen",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman rm $(podman ps -a -q) -f",
+            "uitleg": "alle containers geforceerd verwijderen",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman rm --all",
+            "uitleg": "alle containers verwijderen",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman container prune",
+            "uitleg": "enkel gestopte containers verwijderen (bevestigen met y)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman images",
+            "uitleg": "lokale images tonen (van deze gebruiker)",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman image rm localhost/contdns",
+            "uitleg": "één image verwijderen (= podman rmi)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman image rm --all -f",
+            "uitleg": "alle images verwijderen",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "feit",
+            "tekst": "Zonder --name kiest Podman een naam: bijvoeglijk naamwoord + achternaam wetenschapper, bv. busy_wozniak."
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman rm busy_wozniak -f",
+            "uitleg": "verwijderen op naam; -f ook als hij nog draait",
+            "toestel": "serverXX"
+          }
+        ]
+      },
+      {
+        "titel": "Poorten koppelen (-p) en netwerk",
+        "items": [
+          {
+            "type": "optie",
+            "naam": "-p <HOST_POORT>:<CONTAINER_POORT>",
+            "uitleg": "poort van de server koppelen aan poort in de container, bv. -p 8080:80",
+            "belangrijk": true
+          },
+          {
+            "type": "optie",
+            "naam": "-p 53:53/udp -p 53:53/tcp",
+            "uitleg": "DNS: UDP/53 voor gewone queries, TCP/53 voor zone-transfers en grote antwoorden"
+          },
+          {
+            "type": "feit",
+            "tekst": "Een gewone (niet-root) gebruiker mag geen poorten onder 1024 openen → sudo gebruiken of hoge hostpoort (bv. 8080:80, 1053:53).",
+            "belangrijk": true
+          },
+          {
+            "type": "fout",
+            "probleem": "Error: pasta failed with exit code 1: Failed to bind port 53 (Permission denied)",
+            "oplossing": "rootless geen poort < 1024 → sudo podman run ... of -p 1053:53/udp -p 1053:53/tcp"
+          },
+          {
+            "type": "feit",
+            "tekst": "Rootless Podman regelt het netwerk met pasta: de container krijgt dezelfde IP-instellingen als de host (192.168.112.100 op ens160). Rootful (sudo) krijgt de container een eigen adres, bv. 10.88.0.4/16 op eth0.",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman port 549",
+            "uitleg": "poortdoorverwijzing controleren: 80/tcp -> 0.0.0.0:8080",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "curl 192.168.112.100:8080",
+            "uitleg": "webserver in de container testen vanaf de host (poort 8080!)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "fout",
+            "probleem": "nslookup host.abc.pri 192.168.112.100 → ;; connection timed out; no servers could be reached",
+            "oplossing": "geen portmapping ingesteld → container opnieuw starten met -p 53:53/udp -p 53:53/tcp"
+          },
+          {
+            "type": "fout",
+            "probleem": "nslookup www.google.be 192.168.112.100 → SERVFAIL (forwarden werkt niet bij rootful container)",
+            "oplossing": "Docker zet doorsturen op Drop (Podman op Accept) → ip-forward-no-drop in /etc/docker/daemon.json, docker herstarten, iptables FORWARD ACCEPT"
+          },
+          {
+            "type": "cmd",
+            "cmd": "echo '{ \"ip-forward-no-drop\": true }' | sudo tee /etc/docker/daemon.json",
+            "uitleg": "Docker blokkeert doorgestuurd verkeer niet langer",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo systemctl restart docker",
+            "uitleg": "Docker herstarten",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo iptables -P FORWARD ACCEPT",
+            "uitleg": "FORWARD-policy op ACCEPT",
+            "toestel": "serverXX"
+          }
+        ]
+      },
+      {
+        "titel": "Interactief een container bouwen + podman commit",
+        "items": [
+          {
+            "type": "cmd",
+            "cmd": "podman run -it -p 8080:80 ubi10/ubi:latest",
+            "uitleg": "webserver: interactieve container met poort 8080 → 80",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "dnf install -y httpd",
+            "uitleg": "Apache installeren in de container",
+            "toestel": "container"
+          },
+          {
+            "type": "cmd",
+            "cmd": "echo \"Hallo vanaf Apache op UBI10!\" > /var/www/html/index.html",
+            "uitleg": "eenvoudige webpagina",
+            "toestel": "container"
+          },
+          {
+            "type": "cmd",
+            "cmd": "/usr/sbin/httpd",
+            "uitleg": "httpd starten (melding AH00558 over ServerName is onschuldig)",
+            "toestel": "container"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman run -d ubi10/ubi:latest sleep infinity",
+            "uitleg": "DNS-server: detached container die in leven blijft om te configureren",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman exec -it b2 bash",
+            "uitleg": "interactieve shell in de container",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "dnf -y install bind bind-utils nano",
+            "uitleg": "BIND + tools installeren",
+            "toestel": "container"
+          },
+          {
+            "type": "feit",
+            "tekst": "/etc/named.conf: forwarders 8.8.8.8 en 8.8.4.4, zone \"abc.pri\" type master, file /var/named/abc.pri.dns. Zonebestand: ns1 → 127.0.0.1, host → 192.168.1.100."
+          },
+          {
+            "type": "cmd",
+            "cmd": "chown -R named:named /var/named",
+            "uitleg": "zonefiles enkel voor gebruiker/groep named",
+            "toestel": "container"
+          },
+          {
+            "type": "cmd",
+            "cmd": "chmod 770 -R /var/named",
+            "uitleg": "rechten zonefiles",
+            "toestel": "container"
+          },
+          {
+            "type": "cmd",
+            "cmd": "named-checkconf -z /etc/named.conf",
+            "uitleg": "syntax named.conf controleren",
+            "toestel": "container"
+          },
+          {
+            "type": "cmd",
+            "cmd": "named-checkzone abc.pri /var/named/abc.pri.dns",
+            "uitleg": "syntax zonebestand controleren (OK)",
+            "toestel": "container"
+          },
+          {
+            "type": "cmd",
+            "cmd": "named -g -u named",
+            "uitleg": "named starten op de voorgrond (-g) als user named",
+            "toestel": "container"
+          },
+          {
+            "type": "cmd",
+            "cmd": "nslookup host.abc.pri 127.0.0.1",
+            "uitleg": "test → Address: 192.168.1.100",
+            "toestel": "container"
+          },
+          {
+            "type": "fout",
+            "probleem": "WARN[0010] StopSignal SIGTERM failed to stop container ... in 10 seconds, resorting to SIGKILL",
+            "oplossing": "bash/sleep als PID 1 reageert niet op SIGTERM → --init gebruiken, ubi10/ubi-init, of STOPSIGNAL in Containerfile"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman run --init -d registry.access.redhat.com/ubi10/ubi:latest sleep infinity",
+            "uitleg": "--init: klein init-systeem (catatonit) als PID 1 dat signalen doorstuurt",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman commit b2 contdns",
+            "uitleg": "nieuw image maken van de huidige staat van een (draaiende of gestopte) container → localhost/contdns",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "Een image die je als gewone user maakt (localhost/contdns:latest) is niet zichtbaar voor root of andere gebruikers, en omgekeerd (sudo podman images is leeg).",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman save -o contdns.tar localhost/contdns:latest",
+            "uitleg": "image exporteren als student",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo podman load -i /home/student/contdns.tar",
+            "uitleg": "image importeren als root",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo podman run -p 53:53/udp -p 53:53/tcp --detach contdns",
+            "uitleg": "als root mag poort 53 wel",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "fout",
+            "probleem": "sudo podman run ... contdns vraagt 'Please select an image' (registry.access.redhat.com/contdns, ...)",
+            "oplossing": "lokale image bestaat niet voor root → eerst podman save + sudo podman load"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman run -i -t -d ubi10/ubi-init",
+            "uitleg": "ubi-init: COMMAND = /sbin/init (systemd), stopt netjes met podman stop",
+            "toestel": "serverXX"
+          }
+        ]
+      },
+      {
+        "titel": "Containerfile en podman build",
+        "items": [
+          {
+            "type": "feit",
+            "tekst": "Nadelen interactief bouwen: alles opnieuw met de hand bij wijziging, niemand ziet hoe het image gebouwd is, handwerk is foutgevoelig. Containerfile = tekstbestand met instructies, met één commando opnieuw bouwen (bij Docker: Dockerfile).",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "FROM registry.access.redhat.com/ubi10/ubi-init",
+            "uitleg": "FROM: basisimage waarvan je vertrekt",
+            "toestel": "bestand",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "RUN dnf -y install bind bind-utils && dnf clean all",
+            "uitleg": "RUN: opdracht uitvoeren tijdens het bouwen (software installeren)",
+            "toestel": "bestand",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "COPY scripts/named.conf /etc/named.conf",
+            "uitleg": "COPY: bestand van de host naar het image kopiëren",
+            "toestel": "bestand",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "STOPSIGNAL SIGTERM",
+            "uitleg": "STOPSIGNAL: welk signaal podman stop naar PID 1 stuurt",
+            "toestel": "bestand",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "CMD [\"/usr/sbin/named\", \"-g\", \"-u\", \"named\", \"-c\", \"/etc/named.conf\"]",
+            "uitleg": "CMD: vervangbaar standaardcommando bij start",
+            "toestel": "bestand",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "ENTRYPOINT [\"/usr/sbin/named\", \"-g\", \"-u\", \"named\", \"-c\", \"/etc/named.conf\"]",
+            "uitleg": "ENTRYPOINT: vast deel van het startcommando",
+            "toestel": "bestand",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD pgrep named >/dev/null || exit 1",
+            "uitleg": "HEALTHCHECK: commando dat geregeld test of de toepassing nog werkt",
+            "toestel": "bestand",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "Exec-vorm [\"...\", \"...\"]: programma is zelf PID 1 → signalen komen goed aan. Shellvorm (CMD /usr/sbin/named ...) start via /bin/sh -c."
+          },
+          {
+            "type": "cmd",
+            "cmd": "mkdir -p ~/oefening/scripts",
+            "uitleg": "mappenstructuur; Containerfile in ~/oefening, named.conf en abc.pri in ~/oefening/scripts",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman build --format=docker -t contdns .",
+            "uitleg": "image bouwen in de map met de Containerfile; -t = naam (en tag), . = huidige map",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "optie",
+            "naam": "--format=docker",
+            "uitleg": "zelfde formaat als Docker; nodig voor HEALTHCHECK",
+            "belangrijk": true
+          },
+          {
+            "type": "optie",
+            "naam": "-f",
+            "uitleg": "andere bestandsnaam dan Containerfile opgeven"
+          },
+          {
+            "type": "optie",
+            "naam": "--no-cache",
+            "uitleg": "alle lagen opnieuw bouwen zonder cache"
+          },
+          {
+            "type": "feit",
+            "tekst": "Elke instructie = STEP = nieuwe laag. Ongewijzigde instructie → 'Using cache'. Zet instructies die zelden wijzigen (software installeren) bovenaan.",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman run -d -p 1053:53/udp -p 1053:53/tcp contdns /usr/sbin/named -g -u named -c /etc/named.conf",
+            "uitleg": "container zonder CMD/ENTRYPOINT: startcommando zelf meegeven; 1053 want rootless",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "dig @127.0.0.1 -p 1053 host.abc.pri",
+            "uitleg": "DNS testen → 192.168.1.100",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman run -d --name contdns --hostname contdns -p 1053:53/udp -p 1053:53/tcp contdns",
+            "uitleg": "met ENTRYPOINT in het image: kort commando; --name = containernaam, --hostname = hostname",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman exec -it contdns bash",
+            "uitleg": "in de container via de zelfgekozen naam",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman image inspect ubi10/ubi-init | grep STOP",
+            "uitleg": "ubi-init heeft STOPSIGNAL SIGRTMIN+3 (signaal 37, voor systemd)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "fout",
+            "probleem": "WARN[0010] StopSignal (37) failed to stop container contdns in 10 seconds, resorting to SIGKILL",
+            "oplossing": "named kent signaal 37 (geërfd van ubi-init) niet → STOPSIGNAL SIGTERM in de Containerfile"
+          },
+          {
+            "type": "feit",
+            "tekst": "Met enkel ENTRYPOINT staat bij COMMAND in podman ps niets."
+          },
+          {
+            "type": "vergelijk",
+            "links": "ENTRYPOINT",
+            "rechts": "CMD",
+            "rijen": [
+              [
+                "vast hoofdcommando van het image",
+                "standaardcommando of standaardargumenten"
+              ],
+              [
+                "overschrijven enkel met --entrypoint",
+                "overschrijven: commando achteraan typen bij podman run"
+              ],
+              [
+                "blijft staan als beide gebruikt worden",
+                "wordt als argumenten achter ENTRYPOINT geplakt"
+              ],
+              [
+                "eigen ENTRYPOINT in afgeleid image wist geërfde CMD",
+                "blijft behouden tot je zelf een CMD zet"
+              ],
+              [
+                "image doet altijd hetzelfde (contdns, nginx)",
+                "image is veelzijdig (ubi10/ubi)"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "titel": "HEALTHCHECK en netjes stoppen",
+        "items": [
+          {
+            "type": "feit",
+            "tekst": "Exitcode van het healthcheck-commando: 0 = healthy, andere waarde = unhealthy. Exitcode zit in $? (echo $?).",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "dnf install -y procps-ng",
+            "uitleg": "levert pgrep (ook in RUN-regel van de Containerfile toevoegen)",
+            "toestel": "container"
+          },
+          {
+            "type": "cmd",
+            "cmd": "pgrep named > /dev/null",
+            "uitleg": "zoekt proces named; exitcode 0 = gevonden, 1 = niet gevonden",
+            "toestel": "container"
+          },
+          {
+            "type": "feit",
+            "tekst": "pgrep named >/dev/null || exit 1 → is de exitcode niet 0, dan exit 1 = unhealthy."
+          },
+          {
+            "type": "optie",
+            "naam": "--interval=30s",
+            "uitleg": "hoe vaak de check loopt (default 30s)"
+          },
+          {
+            "type": "optie",
+            "naam": "--timeout=5s",
+            "uitleg": "maximale duur van de check"
+          },
+          {
+            "type": "optie",
+            "naam": "--retries=3",
+            "uitleg": "aantal mislukte checks vóór unhealthy"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman inspect --format '{{.State.Health.Status}}' contdns",
+            "uitleg": "healthstatus opvragen (ook zichtbaar in podman ps)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "feit",
+            "tekst": "Healthcheck rapporteert enkel; een unhealthy container blijft draaien. Met --health-on-failure bij podman run: none (standaard), kill, stop, restart.",
+            "belangrijk": true
+          },
+          {
+            "type": "vergelijk",
+            "links": "Image (PID 1)",
+            "rechts": "Stopsignaal → stopt netjes?",
+            "rijen": [
+              [
+                "ubi10/ubi (bash)",
+                "SIGTERM → nee, na 10 s SIGKILL"
+              ],
+              [
+                "ubi10/ubi met --init (catatonit)",
+                "SIGTERM → ja (geeft signaal door)"
+              ],
+              [
+                "ubi10/ubi-init (systemd, /sbin/init)",
+                "SIGRTMIN+3 → ja"
+              ],
+              [
+                "ubi10/httpd-24 (httpd)",
+                "SIGTERM → ja"
+              ],
+              [
+                "nginx (nginx)",
+                "SIGQUIT → ja"
+              ],
+              [
+                "alpine (sh)",
+                "SIGTERM → nee, na 10 s SIGKILL"
+              ],
+              [
+                "localhost/contdns (named)",
+                "SIGTERM → ja"
+              ]
+            ]
+          },
+          {
+            "type": "feit",
+            "tekst": "Bij systemd betekent SIGTERM 'opnieuw inlezen', niet afsluiten → daarom SIGRTMIN+3 in ubi10/ubi-init."
+          },
+          {
+            "type": "feit",
+            "tekst": "3 manieren om netjes te stoppen: image waarvan het hoofdproces signalen afhandelt (nginx, httpd); zelf STOPSIGNAL zetten; anders starten met --init.",
+            "belangrijk": true
+          }
+        ]
+      },
+      {
+        "titel": "Buildah",
+        "items": [
+          {
+            "type": "feit",
+            "tekst": "Podman bouwt images niet zelf: podman build roept Buildah op. Buildah kan je ook rechtstreeks gebruiken; zelfde opslag → image zichtbaar met podman images.",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo dnf install -y buildah",
+            "uitleg": "Buildah installeren (is al geïnstalleerd)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "buildah build --format=docker -t contdns .",
+            "uitleg": "hetzelfde image bouwen met Buildah",
+            "toestel": "serverXX",
+            "belangrijk": true
+          }
+        ]
+      },
+      {
+        "titel": "Docker Hub: taggen, pushen, pullen",
+        "items": [
+          {
+            "type": "feit",
+            "tekst": "Private repository: enkel voor jou en wie je expliciet toegang geeft. Public repository: iedereen kan bekijken en downloaden zonder authenticatie. Gratis account (Docker Personal): max. 1 private repository, publieke onbeperkt.",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "Tweede private repo nodig? Bestaande op publiek zetten, een private verwijderen, of betalend abonnement (Docker Pro of hoger)."
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman login docker.io",
+            "uitleg": "via de CLI inloggen op Docker Hub",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "docker login -u <dockergebruikersnaam>",
+            "uitleg": "zelfde bij Docker (niet uitgevoerd)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman tag contdns:latest docker.io/stijnjacobspxl/contdns:latest",
+            "uitleg": "lokaal image taggen met repositorynaam op Docker Hub (algemeen: docker.io/<jouw-gebruikersnaam>/<repo-naam>:latest); zelfde image-ID",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman push docker.io/stijnjacobspxl/contdns:latest",
+            "uitleg": "pushen = image uploaden naar een registry",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "feit",
+            "tekst": "Bij de eerste push gaan ook de lagen van het basisimage (ubi10/ubi-init) mee: elke registry bewaart eigen lagen en een image op Docker Hub moet volledig zijn. Lagen die er al staan worden later overgeslagen."
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman image rm docker.io/stijnjacobspxl/contdns",
+            "uitleg": "lokaal verwijderen (Untagged) vóór pull-test",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "podman pull docker.io/stijnjacobspxl/contdns:latest",
+            "uitleg": "pullen = image van registry naar lokale opslag downloaden",
+            "toestel": "serverXX",
+            "belangrijk": true
+          }
+        ]
+      },
+      {
+        "titel": "Cockpit (webinterface)",
+        "items": [
+          {
+            "type": "feit",
+            "tekst": "Cockpit = opensource webinterface voor Linux-serverbeheer op poort 9090; plugin cockpit-podman voegt containers en images toe. Login met gewone RHEL-gebruikers (student), daarna beheerderstoegang inschakelen.",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo dnf install -y cockpit cockpit-podman",
+            "uitleg": "installeren (hoort meestal al bij RHEL 10)",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo systemctl enable --now cockpit.socket",
+            "uitleg": "inschakelen en meteen starten",
+            "toestel": "serverXX",
+            "belangrijk": true
+          },
+          {
+            "type": "cmd",
+            "cmd": "sudo firewall-cmd --add-service=cockpit --permanent",
+            "uitleg": "firewall openen voor cockpit (+ firewall-cmd --reload)",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "feit",
+            "tekst": "Surf naar http://localhost:9090 → Podman containers → Show images → Create container. 'Create and run' start altijd detached."
+          },
+          {
+            "type": "feit",
+            "tekst": "podman pull hello-world haalt quay.io/podman/hello:latest; container staat meteen op Exited (begroeting afgedrukt, klaar). Logs = tegenhanger van podman logs."
+          },
+          {
+            "type": "feit",
+            "tekst": "Menu (drie puntjes): Start (= podman start), Rename, Commit (= podman commit, nieuw image van huidige toestand, geen draaiende processen), Delete (container weg, image blijft)."
+          },
+          {
+            "type": "feit",
+            "tekst": "Voorbeeld 2: docker.io/library/nginx:latest, Name: web, Owner: system (→ poorten onder 1024), poortmappings 80 en 8080, variabele NGINX_ENTRYPOINT_QUIET_LOGS = 1."
+          },
+          {
+            "type": "cmd",
+            "cmd": "curl -fsS http://localhost/",
+            "uitleg": "Health check Command in Cockpit; -f faalt bij HTTP-fout (403/404/500), -s stil, -S toont toch fout. Interval 30, Timeout 5, Retries 3, When unhealthy: Restart",
+            "toestel": "serverXX"
+          },
+          {
+            "type": "cmd",
+            "cmd": "curl http://localhost:8080",
+            "uitleg": "test nginx ('Welcome to nginx!') op poort 80 en 8080",
+            "toestel": "serverXX"
+          }
+        ]
+      }
+    ],
+    "vragen": [
+      {
+        "vraag": "Uit welke drie delen bestaat een volledige imagenaam? Geef een voorbeeld.",
+        "antwoord": "Registry, naam (repository) en tag: registry.access.redhat.com/ubi10/ubi:latest."
+      },
+      {
+        "vraag": "Waarom vraagt Podman naar een registry bij podman pull redhat/ubi10:latest, maar niet bij ubi10/ubi:latest?",
+        "antwoord": "Korte naam zonder registry: Podman laat kiezen. ubi10/ubi is een alias (001-rhel-shortnames.conf) die naar registry.access.redhat.com wijst. Docker vult een korte naam altijd aan met docker.io."
+      },
+      {
+        "vraag": "Wat is het verschil tussen de drie registries?",
+        "antwoord": "registry.access.redhat.com: Red Hat, zonder login. registry.redhat.io: Red Hat, login met Red Hat-account. docker.io: Docker Hub, gesynchroniseerd, soms minder up-to-date."
+      },
+      {
+        "vraag": "Hoe zijn images opgebouwd en waarom worden lagen hergebruikt?",
+        "antwoord": "Uit lagen met wijzigingen t.o.v. de laag eronder. Lagen die al lokaal staan worden niet opnieuw gedownload ('skipped: already exists'); bespaart opslag en tijd."
+      },
+      {
+        "vraag": "Verschil voorgrond, -it en -d?",
+        "antwoord": "Voorgrond: voert taak uit en stopt. -it: interactief, blijft draaien met terminal in de container. -d: detached, draait op de achtergrond."
+      },
+      {
+        "vraag": "Waarom stopt podman run -d ubi10/ubi onmiddellijk en podman run -it -d ubi10/ubi niet?",
+        "antwoord": "Zonder -it krijgt bash geen invoer en geen TTY en sluit meteen af; met -it blijft bash actief."
+      },
+      {
+        "vraag": "Wat doet -p 8080:80 en waarom niet -p 80:80 als student?",
+        "antwoord": "Hostpoort 8080 → containerpoort 80. Een niet-root gebruiker mag geen poorten onder 1024 openen."
+      },
+      {
+        "vraag": "Waarom ziet root je image localhost/contdns niet en hoe los je dat op?",
+        "antwoord": "Images van een gebruiker zijn niet zichtbaar voor andere gebruikers/root. podman save -o contdns.tar localhost/contdns:latest en sudo podman load -i /home/student/contdns.tar."
+      },
+      {
+        "vraag": "Wat doet podman commit?",
+        "antwoord": "Maakt een nieuw image van de huidige staat van een (draaiende of gestopte) container, bv. podman commit b2 contdns."
+      },
+      {
+        "vraag": "Wat doen FROM, RUN, COPY, ENTRYPOINT, CMD, STOPSIGNAL en HEALTHCHECK?",
+        "antwoord": "Basisimage; opdracht tijdens bouwen; bestand host → image; vast startcommando; vervangbaar standaardcommando; signaal voor podman stop; periodieke gezondheidstest (exitcode 0 = healthy)."
+      },
+      {
+        "vraag": "Verschil ENTRYPOINT en CMD bij podman run <image> <commando>?",
+        "antwoord": "CMD wordt vervangen door het commando; bij ENTRYPOINT wordt het als argument erachter geplakt (vervangen enkel met --entrypoint)."
+      },
+      {
+        "vraag": "Waarom STOPSIGNAL SIGTERM in de Containerfile van contdns?",
+        "antwoord": "ubi10/ubi-init erft STOPSIGNAL SIGRTMIN+3 (37) voor systemd; named kent dat niet → na 10 s SIGKILL. Met SIGTERM stopt named meteen."
+      },
+      {
+        "vraag": "Wat is Buildah?",
+        "antwoord": "De tool waarmee Podman images bouwt (podman build roept Buildah op); rechtstreeks: buildah build --format=docker -t contdns . — zelfde opslag als Podman."
+      },
+      {
+        "vraag": "Welke stappen om een eigen image op Docker Hub te zetten en terug te halen?",
+        "antwoord": "podman login docker.io → podman tag contdns:latest docker.io/<gebruiker>/contdns:latest → podman push ... → podman pull docker.io/<gebruiker>/contdns:latest."
+      },
+      {
+        "vraag": "Hoe installeer en bereik je Cockpit?",
+        "antwoord": "sudo dnf install -y cockpit cockpit-podman, sudo systemctl enable --now cockpit.socket, firewall-cmd --add-service=cockpit; browser http://localhost:9090 met de gewone gebruiker student."
+      }
+    ]
+  }
+]

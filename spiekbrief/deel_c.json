@@ -1,0 +1,408 @@
+[
+  {
+    "hoofdstuk": 5,
+    "titel": "Containernetwerken en datavolumes",
+    "kern": [
+      "Vier communicatiemogelijkheden: 2 containers op dezelfde host, container ↔ externe service, externe omgeving → container, containers op verschillende hosts.",
+      "Rootless (podman) gebruikt standaard pasta (opvolger van slirp4netns): geen eigen IP, de container deelt het adres van de host (192.168.112.100) en er komt niets bij op de host. De host bereik je via host.containers.internal.",
+      "Rootful (sudo podman) gebruikt standaard de bridge podman0: container krijgt eigen adres uit 10.88.0.0/16 (gateway 10.88.0.1), veth per container, NAT in POSTROUTING.",
+      "Eigen netwerk met podman network create (bridge): containers vinden elkaar op naam via ingebouwde DNS; rootless staat die brug in een aparte namespace, niet op de host.",
+      "Netwerkmodi: bridge, pasta, host, none (rootful én rootless), macvlan en ipvlan (enkel rootful). Macvlan = eigen MAC + IP in het LAN; ipvlan = eigen IP maar MAC van de host. Bij beide kan de host zijn eigen containers niet bereiken.",
+      "Stateless = geen gegevens bewaren; stateful (bv. SQL) = volume nodig. Volumes: named volume, bind mount (:Z/:z voor SELinux), tmpfs (RAM), remote volume (NFS/CIFS)."
+    ],
+    "secties": [
+      {
+        "titel": "Vier communicatiemogelijkheden",
+        "items": [
+          {"type": "feit", "tekst": "1) Twee containers op dezelfde host (bv. Cont1 en Cont2 op server1) via gedeeld netwerk (NAT): lage latentie, eenvoudige configuratie", "belangrijk": true},
+          {"type": "feit", "tekst": "2) Container communiceert met een externe service (bv. Cont1 op Server1 → externe database op DatabaseServer): externe diensten integreren, flexibel", "belangrijk": true},
+          {"type": "feit", "tekst": "3) Externe omgeving communiceert met een container (bv. externe gebruiker → webserver in Cont1): containers als volwaardige servers", "belangrijk": true},
+          {"type": "feit", "tekst": "4) Containers op verschillende hosts (bv. Cont1 op Server1 ↔ Cont45 op Server2): multi-server, schaalbaarheid, netwerkvirtualisatie zonder complexe routering", "belangrijk": true}
+        ]
+      },
+      {
+        "titel": "Opruimen vooraf",
+        "items": [
+          {"type": "cmd", "cmd": "podman rm --all -f", "uitleg": "alle rootless containers (van student) geforceerd verwijderen", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo podman rm --all -f", "uitleg": "alle rootful containers (van root) verwijderen", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman rm --all -f; sudo podman rm --all -f", "uitleg": "beide in één regel", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman network prune; sudo podman network prune", "uitleg": "alle netwerken verwijderen die door geen container gebruikt worden (vraagt bevestiging y/N)", "toestel": "serverXX"},
+          {"type": "optie", "naam": "-f (bij network prune)", "uitleg": "bevestigingsvraag overslaan"},
+          {"type": "feit", "tekst": "Het standaardnetwerk podman kan je niet verwijderen: blijft altijd staan"}
+        ]
+      },
+      {
+        "titel": "Rootless netwerk: pasta",
+        "items": [
+          {"type": "feit", "tekst": "Rootless = containers draaien zonder rootrechten op de host → Podman gebruikt user-space tools: vroeger slirp4netns, nu pasta (high performance opvolger)", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman version", "uitleg": "versie van Podman (cursus: 5.8.2)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman info --debug | grep rootless", "uitleg": "toont rootlessNetworkCmd: pasta en rootless: true", "toestel": "serverXX", "belangrijk": true},
+          {"type": "feit", "tekst": "Geen netwerk opgegeven → rootless-netwerkstack (pasta). Container kan zonder extra instellingen op internet (ping/curl www.google.be)"},
+          {"type": "cmd", "cmd": "podman run -d --name C1 --hostname C1 ubi10/ubi-init", "uitleg": "container starten met standaard rootless netwerk", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman exec -it C1 bash", "uitleg": "shell in de container", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "dnf install -y iputils iproute curl", "uitleg": "netwerktools: ping (iputils), ip (iproute), curl", "toestel": "container"},
+          {"type": "feit", "tekst": "ip a in de container toont ens160 met 192.168.112.100/24 = zelfde kaart en IP als de host: geen eigen netwerkkaart, geen eigen IP-adres", "belangrijk": true},
+          {"type": "feit", "tekst": "Op de host (ip a) komt niets bij: enkel lo, ens160 en docker0. Per container start Podman een pasta-proces onder jouw gebruiker → geen beheerdersrechten nodig", "belangrijk": true},
+          {"type": "feit", "tekst": "docker0 is van Docker (state DOWN als er geen Docker-container draait), heeft niets met Podman te maken"}
+        ]
+      },
+      {
+        "titel": "Rootless: container → host bereiken",
+        "items": [
+          {"type": "fout", "probleem": "curl 127.0.0.1 / curl localhost / curl 192.168.112.100 in de container → curl: (7) Failed to connect … port 80", "oplossing": "127.0.0.1/localhost = loopback van de container zelf; 192.168.112.100 neemt pasta over in de container (= container zelf). Gebruik host.containers.internal"},
+          {"type": "cmd", "cmd": "curl http://host.containers.internal", "uitleg": "vanuit container de webserver op de host bereiken", "toestel": "container", "belangrijk": true},
+          {"type": "feit", "tekst": "host.containers.internal wordt vertaald via /etc/hosts naar 169.254.1.2 (ook host.docker.internal): verzonnen adres van pasta → doorgestuurd naar loopback host 127.0.0.1; niet zichtbaar met ip a op host", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman run -d --network 'pasta:--map-gw' --name C2 --hostname C2 ubi10/ubi-init", "uitleg": "--map-gw: verkeer naar het gateway-adres komt op de loopback van de host", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "curl 192.168.112.2", "uitleg": "in C2: host bereiken via IP van de gateway", "toestel": "container"},
+          {"type": "cmd", "cmd": "podman run -d --network 'pasta:--map-host-loopback=11.11.11.11' --name C3 --hostname C3 ubi10/ubi-init", "uitleg": "verkeer naar 11.11.11.11 → loopback van de host (127.0.0.1); geen echt IP, niet zichtbaar met ip a", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "curl 11.11.11.11", "uitleg": "in C3: host bereiken", "toestel": "container"},
+          {"type": "feit", "tekst": "Adres bij --map-host-loopback: niet in gebruik op host/LAN (wordt gekaapt door pasta), bij voorkeur uit gereserveerd bereik 192.0.2.0/24 of 169.254.0.0/16"},
+          {"type": "cmd", "cmd": "sudo dnf -y install httpd", "uitleg": "webserver op de host (voor de test)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo systemctl start httpd", "uitleg": "httpd starten op host (nadien: sudo systemctl stop httpd)", "toestel": "serverXX"}
+        ]
+      },
+      {
+        "titel": "Poorten publiceren + firewall (van buitenaf → container)",
+        "items": [
+          {"type": "cmd", "cmd": "podman run -d --name myhttpd -p 8080:80 ubi10/ubi sh -c \"dnf install -y httpd && httpd -D FOREGROUND\"", "uitleg": "webserver in container installeren en starten, hostpoort 8080 → containerpoort 80", "toestel": "serverXX", "belangrijk": true},
+          {"type": "optie", "naam": "-p 8080:80 / --publish 8080:80", "uitleg": "portmapping hostpoort 8080 → containerpoort 80 (-p en --publish zijn hetzelfde)"},
+          {"type": "optie", "naam": "sh -c \"...\"", "uitleg": "start één of meerdere commando's; wordt PID 1. && = enkel als installatie lukt wordt httpd gestart"},
+          {"type": "optie", "naam": "httpd -D FOREGROUND", "uitleg": "webserver op de voorgrond → hoofdproces blijft actief, container sluit niet meteen af"},
+          {"type": "optie", "naam": "--rm", "uitleg": "container wordt definitief verwijderd na uitvoering"},
+          {"type": "cmd", "cmd": "curl 192.168.112.100:8080", "uitleg": "website testen (even wachten: httpd moet nog geïnstalleerd worden)", "toestel": "serverXX"},
+          {"type": "fout", "probleem": "Rootless (gewone gebruiker) een poort < 1024 mappen (bv. -p 80:80) lukt niet", "oplossing": "poort ≥ 1024 gebruiken (8080) en met de firewall poort 80 omleiden naar 8080 (rootrechten nodig), of rootful werken", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo firewall-cmd --direct --add-rule ipv4 nat OUTPUT 0 -p tcp --dport 80 -j REDIRECT --to-ports 8080", "uitleg": "verkeer dat op de server zelf vertrekt naar poort 80 → 8080 (keten OUTPUT)", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo firewall-cmd --direct --add-rule ipv4 nat PREROUTING 0   -p tcp --dport 80 -j DNAT --to-destination 192.168.112.100:8080", "uitleg": "verkeer van buitenaf (ClientXX) op poort 80 → 192.168.112.100:8080 (keten PREROUTING)", "toestel": "serverXX", "belangrijk": true},
+          {"type": "optie", "naam": "--direct", "uitleg": "regel rechtstreeks naar onderliggende firewall, buiten het zonesysteem van firewalld"},
+          {"type": "optie", "naam": "nat / OUTPUT / PREROUTING / 0", "uitleg": "nat = tabel die adressen/poorten herschrijft; OUTPUT = verkeer dat op de host vertrekt; PREROUTING = verkeer dat van buitenaf binnenkomt; 0 = volgorde (lager = vroeger)"},
+          {"type": "optie", "naam": "-j REDIRECT --to-ports 8080 / -j DNAT --to-destination", "uitleg": "omleiden naar poort 8080 op dezelfde machine / bestemming herschrijven"},
+          {"type": "fout", "probleem": "OUTPUT-regel ingesteld maar ClientXX geraakt niet aan poort 80", "oplossing": "OUTPUT geldt enkel voor verkeer dat op ServerXX zelf vertrekt; voor ClientXX een PREROUTING-regel (DNAT) toevoegen"},
+          {"type": "cmd", "cmd": "curl 192.168.112.100", "uitleg": "test via poort 80 (vanaf serverXX of clientXX)", "toestel": "clientXX"},
+          {"type": "cmd", "cmd": "sudo systemctl reload firewalld", "uitleg": "tijdelijke (direct) regels verwijderen door firewall te herladen", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman run --rm -it ubi10/ubi curl -v http://host.containers.internal:8080", "uitleg": "andere container bereikt gepubliceerde website via de host", "toestel": "serverXX"}
+        ]
+      },
+      {
+        "titel": "Eigen netwerk (podman network create)",
+        "items": [
+          {"type": "cmd", "cmd": "podman network create --subnet 192.168.5.0/24 --gateway 192.168.5.1 mynat", "uitleg": "eigen netwerk mynat met zelf gekozen subnet en gateway", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman network ls", "uitleg": "netwerken tonen (NETWORK ID, NAME, DRIVER: bridge)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman network inspect mynat", "uitleg": "details van het netwerk", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman run -d --name C1 --hostname C1 --network mynat --ip 192.168.5.150  ubi10/ubi-init", "uitleg": "container in mynat met vast IP 192.168.5.150 (C2: 192.168.5.151)", "toestel": "serverXX", "belangrijk": true},
+          {"type": "optie", "naam": "--network mynat --ip 192.168.5.150", "uitleg": "container in netwerk plaatsen met specifiek IP-adres"},
+          {"type": "cmd", "cmd": "ping -c 1 C2", "uitleg": "in C1: andere container op NAAM bereiken (ingebouwde DNS)", "toestel": "container", "belangrijk": true},
+          {"type": "feit", "tekst": "In de container: /etc/resolv.conf = search dns.podman + nameserver 192.168.5.1 (gateway = DNS); ip route: default via 192.168.5.1 dev eth0", "belangrijk": true},
+          {"type": "feit", "tekst": "ip a in container: eth0@if4 → eth0 = interface container, @if4 = ander uiteinde van virtuele kabel (veth) in de namespace aan de overkant"},
+          {"type": "feit", "tekst": "Rootless: geen netwerkkaart op de host in het subnet van de container! Brug (switch) staat in een aparte netwerk-namespace die Podman voor jouw gebruiker aanmaakt (interfaces 4 en 5 = veth-uiteinden in brug van mynat)", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman network create mynat2 --subnet 10.0.0.0/24 --gateway 10.0.0.1 --dns 10.0.0.4", "uitleg": "netwerk met extra opties: eigen DNS-server 10.0.0.4", "toestel": "serverXX"},
+          {"type": "optie", "naam": "--dns 10.0.0.4", "uitleg": "specifieke DNS-server toewijzen"},
+          {"type": "cmd", "cmd": "podman network rm mynat2", "uitleg": "netwerk verwijderen", "toestel": "serverXX"},
+          {"type": "feit", "tekst": "Eigen netwerk schermt af: containers kunnen naar buiten (NAT), maar van buitenaf geen weg naar 192.168.5.0/24 → poort publiceren nodig"},
+          {"type": "cmd", "cmd": "podman run -d -it --name myhttpd -p 8080:80 --network mynat --ip 192.168.5.160 ubi10/ubi ", "uitleg": "container in mynat met gepubliceerde poort 8080 → 80", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman exec -it myhttpd dnf install -y httpd", "uitleg": "webserver installeren in draaiende container", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman exec -it myhttpd httpd ", "uitleg": "httpd starten in container (melding AH00558 ServerName = onschuldig)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman run -d --name myhttpd2 --publish 1234:80 ubi10/ubi sh -c \"dnf install -y httpd && httpd -D FOREGROUND\"", "uitleg": "meerdere containers op poort 80 → elk een andere hostpoort (hier 1234); test: curl 192.168.112.100:1234", "toestel": "serverXX"}
+        ]
+      },
+      {
+        "titel": "Rootful netwerk (sudo podman)",
+        "items": [
+          {"type": "cmd", "cmd": "sudo podman run -d --name C10 --hostname C10 ubi10/ubi-init", "uitleg": "rootful container zonder netwerk op te geven → standaard bridge-netwerk podman", "toestel": "serverXX"},
+          {"type": "feit", "tekst": "Rootful container krijgt eigen IP uit 10.88.0.0/16 (bv. 10.88.0.2, eth0@if4); gateway 10.88.0.1 staat op bridge podman0", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo podman network ls", "uitleg": "toont standaardnetwerk podman (driver bridge)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo podman network inspect podman", "uitleg": "inspecteren, toont ook draaiende container C10", "toestel": "serverXX"},
+          {"type": "feit", "tekst": "Op de host (ip a): podman0 = virtuele bridge (switch) met 10.88.0.1; veth0@if2 = hostkant van de veth-kabel (laag 2, geen IP). @if-nummers verwijzen naar elkaar", "belangrijk": true},
+          {"type": "feit", "tekst": "Verkeer: C10 → eth0@if4 → veth-paar → veth0@if2 → bridge podman0 → gateway 10.88.0.1 → host vervangt afzender door 192.168.112.100 (NAT, keten POSTROUTING). Containers op zelfde bridge praten rechtstreeks"},
+          {"type": "cmd", "cmd": "ping -c 1 10.88.0.2", "uitleg": "vanaf host rechtstreeks de rootful container pingen", "toestel": "serverXX"},
+          {"type": "feit", "tekst": "Zonder gepubliceerde poort enkel bereikbaar vanaf de host zelf: 10.88.0.0/16 bestaat enkel op deze server, ClientXX heeft geen route"},
+          {"type": "cmd", "cmd": "sudo podman run -d --name myhttpd10 --publish 80:80 ubi10/ubi sh -c \"dnf install -y httpd && httpd -D FOREGROUND\"", "uitleg": "als root mag je poorten < 1024 publiceren (eerst httpd op host stoppen)", "toestel": "serverXX", "belangrijk": true},
+          {"type": "vergelijk", "links": "Rootful (sudo podman)", "rechts": "Rootless (podman)", "rijen": [
+            ["standaardnetwerk: bridge podman0", "pasta (user-space)"],
+            ["eigen adres uit 10.88.0.0/16", "geen eigen adres: dat van de host"],
+            ["zichtbaar op host: podman0 + veth per container", "niets"],
+            ["bereikbaar vanaf host: ja, rechtstreeks op 10.88.0.x", "enkel via gepubliceerde poort"],
+            ["van buitenaf: enkel via gepubliceerde poort", "enkel via gepubliceerde poort"],
+            ["poorten < 1024: mogelijk", "niet mogelijk"],
+            ["processen draaien als root op de host", "processen draaien als jouw gebruiker"]
+          ], "belangrijk": true}
+        ]
+      },
+      {
+        "titel": "Netwerkmodi + host-netwerk",
+        "items": [
+          {"type": "feit", "tekst": "Bridge: standaard rootful én wat je krijgt met podman network create (rootless: brug in aparte namespace). Pasta: standaard rootless", "belangrijk": true},
+          {"type": "feit", "tekst": "Host (rootful en rootless): apps die alle netwerken van de host moeten zien, debugging", "belangrijk": true},
+          {"type": "feit", "tekst": "None (rootful en rootless): maximale isolatie, geen netwerk nodig", "belangrijk": true},
+          {"type": "feit", "tekst": "Macvlan (enkel rootful): containers zichtbaar als aparte hosts op fysiek LAN. Ipvlan (enkel rootful): zelfde, maar zonder extra MAC's in LAN", "belangrijk": true},
+          {"type": "feit", "tekst": "Container-modus: staat in de doelstellingen maar wordt in de cursustekst niet verder uitgewerkt"},
+          {"type": "cmd", "cmd": "sudo podman run -d --name myhttpd --network host ubi10/ubi sh -c \"dnf install -y httpd && httpd -D FOREGROUND\"", "uitleg": "webserver in het netwerk van de host: geen -p en geen firewallregel nodig", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo podman logs -f myhttpd", "uitleg": "voortgang (installatie) volgen", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo podman exec myhttpd ip addr show", "uitleg": "toont exact dezelfde kaarten en IP als de host", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "curl localhost", "uitleg": "webserver luistert rechtstreeks op poort 80 van de host", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman run --rm --network host ubi10/ubi curl http://localhost", "uitleg": "tweede container in host-netwerk: localhost = zelfde voor host en beide containers", "toestel": "serverXX"},
+          {"type": "feit", "tekst": "--network host: zelfde IP als host, geen eigen netwerk; poorten moeten vrij zijn op de host (tweede container kan zelfde poort niet innemen)"},
+          {"type": "fout", "probleem": "Rootless podman run … --network host … httpd: container stopt binnen de minuut", "oplossing": "httpd probeert poort 80 op de host te binden; beperking poorten < 1024 zit in de kernel en blijft gelden → rootful (sudo) gebruiken"}
+        ]
+      },
+      {
+        "titel": "Macvlan-netwerk",
+        "items": [
+          {"type": "feit", "tekst": "Macvlan: elke container eigen MAC-adres + eigen IP rechtstreeks in het fysieke LAN; werkt op laag 2; lijkt een gewone machine in het netwerk", "belangrijk": true},
+          {"type": "cmd", "cmd": "nmcli connection show", "uitleg": "netwerkkaarten opvragen (ens160)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "nmcli connection show ens160 | grep ipv4.addresses", "uitleg": "192.168.112.100/24 (idem ipv4.dns en ipv4.gateway → 192.168.112.2)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo podman network create -d macvlan  --subnet 192.168.112.0/24 --gateway 192.168.112.2  -o parent=ens160  macvlan_netwerk", "uitleg": "macvlan-netwerk aan kaart ens160 hangen", "toestel": "serverXX", "belangrijk": true},
+          {"type": "optie", "naam": "-d macvlan", "uitleg": "macvlan-driver i.p.v. standaarddriver bridge"},
+          {"type": "optie", "naam": "--subnet / --gateway", "uitleg": "zelfde waarden als de host (containers komen in hetzelfde LAN)"},
+          {"type": "optie", "naam": "-o parent=ens160", "uitleg": "netwerkkaart waaraan het macvlan-netwerk vasthangt"},
+          {"type": "cmd", "cmd": "sudo podman run --detach -it --name contiis3 --hostname contiis3 --network macvlan_netwerk --ip 192.168.112.80 ubi10/ubi", "uitleg": "container met eigen LAN-IP 192.168.112.80 (vrij adres, niet uitgedeeld door DHCP); tweede: containerX met 192.168.112.81", "toestel": "serverXX", "belangrijk": true},
+          {"type": "feit", "tekst": "Website in contiis3 bereikbaar vanaf je eigen computer (browser) en vanuit andere containers in hetzelfde macvlan-netwerk (curl http://192.168.112.80)"},
+          {"type": "fout", "probleem": "Vanaf ServerXX: ping/curl 192.168.112.80 → Destination Host Unreachable / Failed to connect", "oplossing": "macvlan-interface mag nooit praten met de netwerkkaart waaraan ze vasthangt → op de host een eigen macvlan-interface aanmaken (doorbreekt wel de scheiding)", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo ip link add macvlan_host link ens160 type macvlan mode bridge", "uitleg": "macvlan-subinterface op de host", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo ip addr add 192.168.112.22/24 dev macvlan_host", "uitleg": "IP in zelfde subnet", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo ip link set macvlan_host up", "uitleg": "interface activeren → host bereikt nu container", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo ip link del macvlan_host", "uitleg": "virtuele interface weer verwijderen", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo podman exec -it contiis3 /bin/sh -c \"ip link show\"", "uitleg": "MAC-adres controleren: elke container een eigen MAC", "toestel": "serverXX"}
+        ]
+      },
+      {
+        "titel": "Ipvlan-netwerk",
+        "items": [
+          {"type": "feit", "tekst": "Ipvlan: eigen IP-adres per container maar ZELFDE MAC-adres als de host; standaard layer 2 (L3 kan ook); eenvoudiger beheer, voorkomt ARP-problemen van macvlan", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo podman network create -d ipvlan --subnet 192.168.112.0/24 --gateway 192.168.112.2 -o parent=ens160 ipvlan_netwerk", "uitleg": "ipvlan-netwerk aanmaken", "toestel": "serverXX", "belangrijk": true},
+          {"type": "fout", "probleem": "macvlan/ipvlan-netwerk aanmaken zonder sudo", "oplossing": "Opgelet: sudo is nodig! Macvlan en ipvlan werken alleen rootful (rootless geen toegang tot fysieke netwerkkaart)", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo podman run --detach -it --name contiis4 --hostname contiis4 --network ipvlan_netwerk --ip 192.168.112.80 ubi10/ubi", "uitleg": "container met LAN-IP; tweede: containerY met 192.168.112.81; bereikbaar vanaf Windows host", "toestel": "serverXX"},
+          {"type": "fout", "probleem": "Host bereikt ipvlan-container niet (Destination Host Unreachable)", "oplossing": "zelfde als macvlan: ipvlan-interface mag niet praten met zijn parent-kaart → ipvlan_host-interface op de host (beveiligingsrisico)"},
+          {"type": "cmd", "cmd": "sudo ip link add ipvlan_host link ens160 type ipvlan", "uitleg": "ipvlan-subinterface op host (+ ip addr add 192.168.112.22/24 dev ipvlan_host, ip link set ipvlan_host up)", "toestel": "serverXX"},
+          {"type": "fout", "probleem": "Na sudo ip link set ipvlan_host up valt de SSH-verbinding weg", "oplossing": "zelfde MAC als ens160 → kernel kan frames niet toewijzen (nadeel ipvlan L2). Werk in VM-console; sudo ip link delete ipvlan_host en sudo systemctl restart sshd. Host → containers? Gebruik beter macvlan", "belangrijk": true},
+          {"type": "vergelijk", "links": "macvlan L2", "rechts": "ipvlan L2", "rijen": [
+            ["eigen MAC-adres per container", "MAC gedeeld met de host"],
+            ["IP uit het LAN-subnet", "IP uit het LAN-subnet"],
+            ["zichtbaar op LAN als echte machine", "zichtbaar, maar alle via één MAC"],
+            ["belasting switch: hoog, veel MAC-adressen", "laag, één MAC-adres"],
+            ["root nodig, poorten < 1024 ja", "root nodig, poorten < 1024 ja"],
+            ["vanaf host: nee, extra macvlan-interface nodig", "nee, extra ipvlan-interface nodig"],
+            ["containers als volwaardige machines in LAN", "hetzelfde, zonder extra MAC-adressen"]
+          ], "belangrijk": true},
+          {"type": "vergelijk", "links": "bridge rootful", "rechts": "pasta rootless", "rijen": [
+            ["MAC niet zichtbaar op het LAN", "MAC niet zichtbaar op het LAN"],
+            ["IP uit privésubnet, met NAT", "geen eigen adres: dat van de host"],
+            ["LAN: nee, enkel via gepubliceerde poort", "nee, enkel via gepubliceerde poort"],
+            ["root nodig, poorten < 1024 ja", "geen root, poorten < 1024 nee"],
+            ["vanaf host: ja, rechtstreeks op adres container", "enkel via gepubliceerde poort"],
+            ["klassieke opstelling, meest gebruikt", "veilig werken zonder root"]
+          ]}
+        ]
+      },
+      {
+        "titel": "Stateless/stateful + soorten volumes",
+        "items": [
+          {"type": "vergelijk", "links": "Stateless", "rechts": "Stateful", "rijen": [
+            ["slaat geen gegevens op", "vereist opslag (bv. SQL-installatie)"],
+            ["aanmaken/verwijderen zonder zorgen, instantie eenvoudig opnieuw maken", "status behouden is cruciaal → volume koppelen, data extern bewaren"]
+          ], "belangrijk": true},
+          {"type": "feit", "tekst": "Named volume: gecreëerd en beheerd door Docker/Podman; locatie hangt af van OS en rootless/rootful; voor data gedeeld door meerdere containers", "belangrijk": true},
+          {"type": "feit", "tekst": "Bind mount: specifieke directory op de host (expliciet opgegeven) koppelen aan directory in container; bv. logbestanden", "belangrijk": true},
+          {"type": "feit", "tekst": "tmpfs: data enkel in het geheugen (RAM), gewist na afsluiten container", "belangrijk": true},
+          {"type": "feit", "tekst": "Remote volumes: direct mounts naar netwerk-filesystems, zeker CIFS en NFS. iSCSI: op host koppelen, dan via bind mount aan container", "belangrijk": true}
+        ]
+      },
+      {
+        "titel": "Named volume",
+        "items": [
+          {"type": "cmd", "cmd": "podman volume create mijn_data_volume", "uitleg": "volume aanmaken (niet verplicht: podman run -v maakt het zelf aan)", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman volume create mijn_data_volume2 --label \"project=my_project\"", "uitleg": "volume met label (enkel als je het zelf eerst aanmaakt)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman volume inspect mijn_data_volume2", "uitleg": "labels en locatie op schijf zien", "toestel": "serverXX"},
+          {"type": "feit", "tekst": "Rootless locatie: /home/student/.local/share/containers/storage/volumes/<naam>/_data. Met sudo aangemaakt → andere locatie", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman run -d --name conta -v mijn_data_volume:/test ubi10/ubi-init", "uitleg": "volume koppelen aan /test in de container; data blijft na verwijderen container", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman exec -it contb bash -c \"cat /test/bestandtest.txt\"", "uitleg": "nieuwe container contb (zelfde volume) ziet data van conta", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman volume ls", "uitleg": "alle volumes (DRIVER local)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman volume ls -q", "uitleg": "enkel volumenamen", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman volume rm $(podman volume ls -q)", "uitleg": "alle ongebruikte volumes tegelijk verwijderen (command substitution); eerst containers verwijderen", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo podman volume create mijn_data_volume3", "uitleg": "rootful volume (andere locatie; verwijderen: sudo podman volume rm mijn_data_volume3)", "toestel": "serverXX"}
+        ]
+      },
+      {
+        "titel": "Bind mount (+ SELinux :Z / :z)",
+        "items": [
+          {"type": "cmd", "cmd": "sudo mkdir -p /srv/contdata", "uitleg": "eerst zelf map maken op de host", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "echo \"Here is some data!\" | sudo tee /srv/contdata/data1.txt", "uitleg": "bestand data1.txt aanmaken", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo podman run -d --name cont1 --hostname cont1 -v /srv/contdata:/data:Z ubi10/ubi-init", "uitleg": "map host /srv/contdata → /data in container", "toestel": "serverXX", "belangrijk": true},
+          {"type": "optie", "naam": ":Z", "uitleg": "SELinux: toegang voor deze container (meestal wat je wil)", "belangrijk": true},
+          {"type": "optie", "naam": ":z", "uitleg": "SELinux: gedeelde toegang (meerdere containers tegelijk zelfde map)", "belangrijk": true},
+          {"type": "fout", "probleem": "Bind mount zonder :Z of :z → Permission denied in de container", "oplossing": "Podman past het SELinux-label niet aan → :Z (één container) of :z (gedeeld) toevoegen", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo podman run -d --name cont2 --hostname cont2 -v /srv/contdata:/data:z ubi10/ubi-init", "uitleg": "tweede container ziet en wijzigt dezelfde data", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo podman exec -it cont2 /bin/sh -c \"cat /data/data1.txt\"", "uitleg": "inhoud bekijken via cont2", "toestel": "serverXX"},
+          {"type": "feit", "tekst": "Koppeling met volume gebeurt bij het aanmaken van de container. Rootless: mappen uit eigen home binden kan; mappen zonder permissies niet (chmod/ACL's)"}
+        ]
+      },
+      {
+        "titel": "tmpfs-volume",
+        "items": [
+          {"type": "cmd", "cmd": "podman run --detach -i --name mijn_container --tmpfs /tijdelijk:rw,size=64M ubi10/ubi", "uitleg": "tmpfs-volume op /tijdelijk, lezen+schrijven, max 64 MB RAM van de host", "toestel": "serverXX", "belangrijk": true},
+          {"type": "optie", "naam": "--tmpfs /tijdelijk:rw,size=64M", "uitleg": "/tijdelijk = mountpunt; rw = lees/schrijf; size=64M = max grootte"},
+          {"type": "cmd", "cmd": "df -h /tijdelijk", "uitleg": "grootte controleren (tmpfs 64M)", "toestel": "container"},
+          {"type": "cmd", "cmd": "dd if=/dev/zero of=/tijdelijk/testfile.img bs=10M count=1", "uitleg": "testbestand van 10 MB maken", "toestel": "container"},
+          {"type": "feit", "tekst": "Gebruik: tijdelijke opslag (/tmp, cache, lockfiles) en veilige opslag (niets blijft over op schijf)"}
+        ]
+      },
+      {
+        "titel": "Remote volume (NFS)",
+        "items": [
+          {"type": "cmd", "cmd": "sudo dnf install -y nfs-utils", "uitleg": "NFS-pakket (op clientXX én serverXX)", "toestel": "clientXX"},
+          {"type": "cmd", "cmd": "sudo mkdir -p /srv/gedeeld", "uitleg": "gedeelde map op ClientXX (NFS-server)", "toestel": "clientXX"},
+          {"type": "cmd", "cmd": "echo 'Dit zijn gegevens' | sudo tee /srv/gedeeld/data.txt", "uitleg": "bestand data.txt in share", "toestel": "clientXX"},
+          {"type": "cmd", "cmd": "sudo nano /etc/exports", "uitleg": "share instellen", "toestel": "clientXX"},
+          {"type": "cmd", "cmd": "/srv/gedeeld 192.168.112.100(rw)", "uitleg": "regel in /etc/exports: delen met ServerXX, lezen/schrijven", "toestel": "bestand", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo systemctl enable --now nfs-server", "uitleg": "NFS-server starten + na reboot", "toestel": "clientXX"},
+          {"type": "cmd", "cmd": "sudo exportfs -rav", "uitleg": "map delen (exporting 192.168.112.100:/srv/gedeeld)", "toestel": "clientXX"},
+          {"type": "cmd", "cmd": "sudo firewall-cmd --zone=public --permanent --add-service=nfs", "uitleg": "firewall openen voor NFS (daarna sudo systemctl restart firewalld)", "toestel": "clientXX"},
+          {"type": "cmd", "cmd": "sudo mkdir -p /nfs/gedeeld", "uitleg": "mountpunt op ServerXX", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo mount -t nfs 192.168.112.200:/srv/gedeeld /nfs/gedeeld", "uitleg": "NFS-share van ClientXX mounten op ServerXX", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo podman run -d --name contV --hostname contV  -v /nfs/gedeeld:/contdata ubi10/ubi-init", "uitleg": "gemounte share via bind mount aan container geven", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "sudo podman exec -it contV bash -c 'cat /contdata/data.txt'", "uitleg": "toont 'Dit zijn gegevens'", "toestel": "serverXX"},
+          {"type": "fout", "probleem": "In de container geen gegevens kunnen wegschrijven op de NFS-share", "oplossing": "bij NFS wordt root standaard omgeleid naar gebruiker nobody (gezien in Linux Advanced)"}
+        ]
+      }
+    ],
+    "vragen": [
+      {"vraag": "Noem de vier communicatiemogelijkheden van containers.", "antwoord": "Twee containers op dezelfde host; container met externe service; externe omgeving met container; containers op verschillende hosts."},
+      {"vraag": "Welke tool gebruikt Podman voor rootless netwerken en hoe controleer je dat?", "antwoord": "pasta (opvolger van slirp4netns); podman info --debug | grep rootless → rootlessNetworkCmd: pasta."},
+      {"vraag": "Welk IP-adres heeft een rootless container met het standaardnetwerk?", "antwoord": "Geen eigen: hij ziet ens160 met het adres van de host (192.168.112.100). Op de host komt geen interface bij."},
+      {"vraag": "Waarom werkt curl 127.0.0.1 vanuit een rootless container niet om de host te bereiken, en wat wel?", "antwoord": "127.0.0.1 is de loopback van de container zelf. Gebruik host.containers.internal (169.254.1.2 via /etc/hosts), of pasta:--map-gw / --map-host-loopback."},
+      {"vraag": "Verschil rootless en rootful netwerk (standaard)?", "antwoord": "Rootless: pasta, adres van host, niets zichtbaar op host, geen poorten < 1024. Rootful: bridge podman0, eigen adres uit 10.88.0.0/16, veth per container, poorten < 1024 kan, bereikbaar vanaf host op 10.88.0.x."},
+      {"vraag": "Waarom lukt podman run -p 80:80 niet als student?", "antwoord": "Gewone gebruiker kan geen hostpoort < 1024 mappen (kernelbeperking). Gebruik bv. 8080 + firewallregel (REDIRECT/DNAT) of rootful."},
+      {"vraag": "Welke firewallketen voor verkeer van ClientXX naar poort 80 en welke voor verkeer op de server zelf?", "antwoord": "Van buitenaf: PREROUTING (DNAT --to-destination 192.168.112.100:8080); op de server zelf: OUTPUT (REDIRECT --to-ports 8080). Verwijderen: sudo systemctl reload firewalld."},
+      {"vraag": "Hoe maak je een eigen netwerk met subnet 192.168.5.0/24 en geef je een container een vast IP?", "antwoord": "podman network create --subnet 192.168.5.0/24 --gateway 192.168.5.1 mynat; podman run ... --network mynat --ip 192.168.5.150 ..."},
+      {"vraag": "Hoe kunnen containers in hetzelfde eigen netwerk elkaar op naam bereiken?", "antwoord": "Via de ingebouwde DNS van het netwerk: resolv.conf bevat search dns.podman en nameserver = gateway (192.168.5.1); bv. ping -c 1 C2."},
+      {"vraag": "Noem de netwerkmodi van Podman en welke enkel rootful werken.", "antwoord": "bridge, pasta, host, none, macvlan, ipvlan (en container). Macvlan en ipvlan enkel rootful."},
+      {"vraag": "Wat doet --network host?", "antwoord": "Container gebruikt netwerkstack van de host: zelfde IP, geen -p nodig, poorten moeten vrij zijn op de host."},
+      {"vraag": "Hoe maak je een macvlan-netwerk zodat een container een eigen IP in het LAN krijgt?", "antwoord": "sudo podman network create -d macvlan --subnet 192.168.112.0/24 --gateway 192.168.112.2 -o parent=ens160 macvlan_netwerk; dan --network macvlan_netwerk --ip 192.168.112.80."},
+      {"vraag": "Waarom kan de host zijn macvlan-container niet bereiken en hoe los je dit op?", "antwoord": "Een macvlan-interface mag niet praten met de kaart waaraan ze hangt. Oplossing: macvlan-interface op host (ip link add macvlan_host link ens160 type macvlan mode bridge + IP + up)."},
+      {"vraag": "Verschil macvlan en ipvlan?", "antwoord": "Macvlan: eigen MAC per container (hoge switchbelasting). Ipvlan: eigen IP maar MAC van de host (één MAC, geen ARP-problemen); ipvlan-interface op host breekt SSH."},
+      {"vraag": "Verschil stateless en stateful container?", "antwoord": "Stateless bewaart geen gegevens en kan zo opnieuw gemaakt worden; stateful (bv. SQL) moet status behouden → volume koppelen."},
+      {"vraag": "Noem de soorten volumes en een kenmerk.", "antwoord": "Named volume (beheerd door Podman), bind mount (map op host), tmpfs (RAM, weg na afsluiten), remote volume (NFS/CIFS)."},
+      {"vraag": "Wat betekenen :Z en :z bij een bind mount?", "antwoord": "SELinux-label: :Z = enkel deze container, :z = gedeeld door meerdere containers; zonder → Permission denied."},
+      {"vraag": "Hoe koppel je een NFS-share aan een container?", "antwoord": "Share mounten op de host (sudo mount -t nfs 192.168.112.200:/srv/gedeeld /nfs/gedeeld) en dan bind mount: -v /nfs/gedeeld:/contdata."}
+    ]
+  },
+  {
+    "hoofdstuk": 6,
+    "titel": "Podman images",
+    "kern": [
+      "podman search zoekt in de registries uit /etc/containers/registries.conf; unqualified-search-registries bepaalt waar Podman zoekt als je een image zonder registry opgeeft.",
+      "podman inspect geeft JSON; met | jq leesbaar, met --format '{{json .Config}}' (of .Config.Labels, .Config.Labels.help, .Config.Labels.usage) gericht filteren.",
+      "Documentatie van images: Red Hat Ecosystem Catalog (catalog.redhat.com), github.com/sclorg en Docker Hub (hub.docker.com, Docker Official Image): omgevingsvariabelen, poorten en volumes.",
+      "Webserver: website aanleveren via gekoppelde map (-v /wwwdata/html:/opt/app-root/src:Z). Database: instellen met -e environment-variabelen en verbinden met mysql -h 127.0.0.1 -P 3306.",
+      "WordPress + MariaDB elk in eigen container (WordPress-image bevat PHP maar geen databaseserver), met named volumes mysql-data en wp-content en eigen netwerk wpnet zodat ze elkaar op naam vinden.",
+      "Let op: niet elk image is RHEL: WordPress en MariaDB van Docker Hub = Debian (apt), Alpine = apk, RHEL = dnf."
+    ],
+    "secties": [
+      {
+        "titel": "Images zoeken en registries",
+        "items": [
+          {"type": "cmd", "cmd": "less -N /etc/containers/registries.conf", "uitleg": "registries-configuratie met regelnummers bekijken", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "unqualified-search-registries = [\"registry.access.redhat.com\", \"registry.redhat.io\", \"docker.io\"]", "uitleg": "regel 22 in registries.conf (enige regel zonder #)", "toestel": "bestand", "belangrijk": true},
+          {"type": "feit", "tekst": "unqualified-search-registries = waar Podman zoekt wanneer je een image opgeeft zonder registry", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman search nginx", "uitleg": "zoeken naar images in de registries (zeer veel resultaten)", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman search nginx | grep ubi10", "uitleg": "verfijnen → registry.redhat.io/ubi10/nginx-126", "toestel": "serverXX"},
+          {"type": "feit", "tekst": "registry.redhat.io vereist authenticatie (podman login); registry.access.redhat.com kan zonder aanmelden"},
+          {"type": "cmd", "cmd": "podman pull registry.access.redhat.com/ubi10/nginx-126", "uitleg": "image downloaden zonder inloggen", "toestel": "serverXX"}
+        ]
+      },
+      {
+        "titel": "Image inspecteren (inspect, jq, --format)",
+        "items": [
+          {"type": "cmd", "cmd": "podman inspect ubi10/nginx-126 ", "uitleg": "info over image (onoverzichtelijk JSON)", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman inspect ubi10/nginx-126 | jq", "uitleg": "jq maakt JSON mooi ingesprongen met kleuren", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman inspect --format '{{json .Config}}' ubi10/nginx-126 | jq", "uitleg": "enkel het deel Config", "toestel": "serverXX", "belangrijk": true},
+          {"type": "optie", "naam": "--format '{{json .Config}}'", "uitleg": "Go-template: {{ }} wordt vervangen door waarde uit inspect; json zet veld om naar JSON voor jq; aanhalingstekens voor de shell"},
+          {"type": "cmd", "cmd": "podman inspect --format '{{json .Config.Labels}}' ubi10/nginx-126 | jq", "uitleg": "enkel de labels (o.a. link naar documentatie)", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman inspect --format '{{json .Config.Labels.help}}' ubi10/nginx-126 | jq", "uitleg": "→ \"For more information visit https://github.com/sclorg/nginx-container\"", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman inspect --format '{{json .Config.Env}}' ubi10/nginx-126 | jq", "uitleg": "omgevingsvariabelen van het image (bv. ${NGINX_CONF_PATH})", "toestel": "serverXX"}
+        ]
+      },
+      {
+        "titel": "Documentatie van images terugvinden",
+        "items": [
+          {"type": "feit", "tekst": "Red Hat Ecosystem Catalog: https://catalog.redhat.com → Containers → zoek nginx-126 → Nginx 1.26 (ubi10) → Get this image (registry.redhat.io, onderaan ook registry.access.redhat.com zonder aanmelden)", "belangrijk": true},
+          {"type": "feit", "tekst": "GitHub: https://github.com/sclorg/nginx-container → nginx-1.26: hoe je met een Containerfile een eigen image bouwt en hoe je het image gebruikt met gekoppelde directory", "belangrijk": true},
+          {"type": "feit", "tekst": "Docker Hub: https://hub.docker.com → zoek wordpress/mariadb → filter links Docker Official Image", "belangrijk": true},
+          {"type": "feit", "tekst": "Elke officiële image heeft een beschrijving met: omgevingsvariabelen (MARIADB_ROOT_PASSWORD, WORDPRESS_DB_HOST), standaardpoorten (MariaDB = 3306, WordPress/Apache = 80) en volumes", "belangrijk": true},
+          {"type": "fout", "probleem": "dnf werkt niet in de container van WordPress/MariaDB (Docker Hub)", "oplossing": "Image is gebaseerd op Debian → apt gebruiken (Alpine → apk). Altijd eerst nakijken op welke distributie een image gebouwd is"}
+        ]
+      },
+      {
+        "titel": "Webserver nginx (eigen image + gekoppelde map)",
+        "items": [
+          {"type": "cmd", "cmd": "sudo dnf install git-core", "uitleg": "git installeren", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "git clone https://github.com/sclorg/nginx-container.git", "uitleg": "voorbeeldbroncode van Red Hat ophalen", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "cd nginx-container/examples/1.26/", "uitleg": "naar voorbeeldmap", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "FROM registry.access.redhat.com/ubi10/nginx-126", "uitleg": "Containerfile: basisimage", "toestel": "bestand"},
+          {"type": "cmd", "cmd": "ADD test-app/nginx.conf \"${NGINX_CONF_PATH}\"", "uitleg": "Containerfile: configuratie op juiste plaats (variabelen staan al in het image)", "toestel": "bestand"},
+          {"type": "cmd", "cmd": "ADD test-app/*.html .", "uitleg": "Containerfile: broncode (html) in image", "toestel": "bestand"},
+          {"type": "cmd", "cmd": "CMD nginx -g \"daemon off;\"", "uitleg": "Containerfile: nginx op de voorgrond (zonder daemon off sluit container meteen af)", "toestel": "bestand", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman build -t nginx-app .", "uitleg": "image bouwen", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman run -d -p 8080:8080 nginx-app", "uitleg": "container starten met gepubliceerde poort (zonder -p geraak je er van buitenaf niet bij)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "curl localhost:8080", "uitleg": "test → NGINX is working", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo mkdir -p /wwwdata/html", "uitleg": "map voor de website", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "echo \"Dit is een eenvoudige website\" | sudo tee /wwwdata/html/index.html", "uitleg": "startpagina index.html", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "sudo podman run -d --name nginx -p 8080:8080 -v /wwwdata/html:/opt/app-root/src:Z ubi10/nginx-126 nginx -g \"daemon off;\"", "uitleg": "webserver met inhoud via gekoppelde map → /opt/app-root/src", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "curl http://192.168.112.100:8080", "uitleg": "→ Dit is een eenvoudige website", "toestel": "serverXX"},
+          {"type": "fout", "probleem": "Webpagina op GitHub vermeldt /wwwdata i.p.v. /wwwdata/html", "oplossing": "fout in de beschrijving: /wwwdata/html koppelen aan /opt/app-root/src"}
+        ]
+      },
+      {
+        "titel": "Database-server MariaDB (Red Hat-image)",
+        "items": [
+          {"type": "cmd", "cmd": "podman search mariadb | grep rhel10", "uitleg": "→ registry.redhat.io/rhel10/mariadb-1011 en mariadb-118", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman login registry.redhat.io", "uitleg": "inloggen (nodig voor registry.redhat.io)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman pull registry.redhat.io/rhel10/mariadb-118", "uitleg": "image downloaden", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman inspect --format '{{json .Config.Labels.usage}}' registry.redhat.io/rhel10/mariadb-118 | jq", "uitleg": "gebruiksvoorbeeld uit het label usage", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman run -d -e MYSQL_USER=student -e MYSQL_PASSWORD=abc -e MYSQL_DATABASE=testdb -p 3306:3306 rhel10/mariadb-118", "uitleg": "database-server starten, ingesteld met environment-variabelen", "toestel": "serverXX", "belangrijk": true},
+          {"type": "optie", "naam": "-e MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE", "uitleg": "gebruiker, wachtwoord en database die automatisch aangemaakt worden"},
+          {"type": "feit", "tekst": "COMMAND run-mysqld = hoofdproces (script start database op de voorgrond); container draait zolang het hoofdproces draait"},
+          {"type": "cmd", "cmd": "sudo dnf install mariadb", "uitleg": "sql-client op de server installeren", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "mysql -h 127.0.0.1 -P 3306 -u student -p testdb", "uitleg": "vanaf server verbinden met database in container (wachtwoord abc); verlaten met exit", "toestel": "serverXX", "belangrijk": true}
+        ]
+      },
+      {
+        "titel": "WordPress + MariaDB in twee containers",
+        "items": [
+          {"type": "feit", "tekst": "Officiële WordPress-image bevat PHP, maar geen databaseserver → database in aparte container (MariaDB)", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman volume create mysql-data", "uitleg": "named volume voor de database", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman volume create wp-content", "uitleg": "named volume voor de website", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman network create wpnet", "uitleg": "eigen netwerk zodat containers elkaar op naam vinden (rootless: meest betrouwbaar)", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "podman run --detach --network wpnet --name mariadb -e MARIADB_ROOT_PASSWORD='ServerXXdocker007' -e MARIADB_DATABASE='wordpress' -e MARIADB_USER='wp' -e MARIADB_PASSWORD='ServerXXdocker1' -v mysql-data:/var/lib/mysql:Z docker.io/library/mariadb:latest", "uitleg": "MariaDB-container in wpnet, database opgeslagen in mysql-data", "toestel": "serverXX", "belangrijk": true},
+          {"type": "optie", "naam": "MARIADB_ROOT_PASSWORD / MARIADB_DATABASE / MARIADB_USER / MARIADB_PASSWORD", "uitleg": "wachtwoord root / database wordpress automatisch aanmaken / gebruiker wp / wachtwoord van wp"},
+          {"type": "cmd", "cmd": "podman logs -f mariadb", "uitleg": "controleren of MariaDB connecties aanvaardt (eruit met CTRL+C)", "toestel": "serverXX"},
+          {"type": "cmd", "cmd": "podman run -d --name wordpress --network wpnet -p 8080:80 -e WORDPRESS_DB_HOST='mariadb:3306' -e WORDPRESS_DB_USER='wp' -e WORDPRESS_DB_PASSWORD='ServerXXdocker1' -e WORDPRESS_DB_NAME='wordpress' -v wp-content:/var/www/html/wp-content:Z docker.io/library/wordpress:latest", "uitleg": "WordPress-container: rootless dus poort 8080 → 80; DB-host op naam mariadb:3306", "toestel": "serverXX", "belangrijk": true},
+          {"type": "cmd", "cmd": "netstat -tlpn | grep 8080", "uitleg": "check: :::8080 LISTEN rootlessport", "toestel": "serverXX"},
+          {"type": "feit", "tekst": "Afwerken via webinterface: browser ServerXX → http://localhost:8080 → Nederlands (België) → Doorgaan → gegevens site → WordPress installeren → Aanmelden. Beheer: http://localhost:8080/wp-admin/ (ook http://192.168.112.100:8080/)", "belangrijk": true},
+          {"type": "vergelijk", "links": "WordPress klassiek (Linux Advanced)", "rechts": "WordPress met containers", "rijen": [
+            ["httpd installeren, configureren, starten", "officiële image wordpress (bevat PHP + webserver)"],
+            ["MariaDB installeren, database + user + wachtwoord aanmaken", "image mariadb + -e MARIADB_* variabelen"],
+            ["bestanden in /var/www/html, rechten aanpassen", "named volume wp-content"],
+            ["wp-config.php configureren voor database", "-e WORDPRESS_DB_HOST/USER/PASSWORD/NAME"]
+          ]}
+        ]
+      }
+    ],
+    "vragen": [
+      {"vraag": "Waar zoekt podman search naar images?", "antwoord": "In de registries uit /etc/containers/registries.conf (unqualified-search-registries: registry.access.redhat.com, registry.redhat.io, docker.io)."},
+      {"vraag": "Wat betekent unqualified-search-registries?", "antwoord": "De lijst registries waar Podman zoekt wanneer je een image opgeeft zonder registry."},
+      {"vraag": "Hoe maak je de uitvoer van podman inspect leesbaar?", "antwoord": "Doorsturen naar jq: podman inspect ubi10/nginx-126 | jq."},
+      {"vraag": "Hoe toon je enkel de labels van een image?", "antwoord": "podman inspect --format '{{json .Config.Labels}}' ubi10/nginx-126 | jq (verder: .Config.Labels.help of .usage)."},
+      {"vraag": "Wat doet --format '{{json .Config}}'?", "antwoord": "Go-template: haalt enkel het veld Config uit de inspect-uitvoer en zet het om naar JSON zodat jq het kan opmaken."},
+      {"vraag": "Waar vind je documentatie van images?", "antwoord": "Red Hat Ecosystem Catalog (catalog.redhat.com), github.com/sclorg (bv. nginx-container) en Docker Hub (hub.docker.com, Docker Official Image)."},
+      {"vraag": "Welk verschil tussen registry.redhat.io en registry.access.redhat.com?", "antwoord": "registry.redhat.io vereist aanmelden (podman login); registry.access.redhat.com niet."},
+      {"vraag": "Hoe lever je de inhoud van een website aan een nginx-container?", "antwoord": "Via gekoppelde map: -v /wwwdata/html:/opt/app-root/src:Z bij ubi10/nginx-126, poort -p 8080:8080."},
+      {"vraag": "Waarom CMD nginx -g \"daemon off;\"?", "antwoord": "Zo draait nginx op de voorgrond; anders gaat het naar de achtergrond en sluit de container meteen af."},
+      {"vraag": "Hoe stel je een database-server in een container in?", "antwoord": "Met environment-variabelen: -e MYSQL_USER=student -e MYSQL_PASSWORD=abc -e MYSQL_DATABASE=testdb -p 3306:3306 rhel10/mariadb-118."},
+      {"vraag": "Hoe maak je vanaf de server verbinding met de database in de container?", "antwoord": "mariadb-client installeren (sudo dnf install mariadb) en mysql -h 127.0.0.1 -P 3306 -u student -p testdb."},
+      {"vraag": "Waarom draaien WordPress en MariaDB in een eigen container?", "antwoord": "De officiële WordPress-image bevat PHP maar geen databaseserver; de database draait gebruikelijk in een aparte container."},
+      {"vraag": "Welke named volumes en welk netwerk gebruik je voor WordPress?", "antwoord": "mysql-data (→ /var/lib/mysql) en wp-content (→ /var/www/html/wp-content); netwerk wpnet zodat wordpress de database op naam mariadb:3306 vindt."},
+      {"vraag": "Waarom poort 8080 voor WordPress en niet 80?", "antwoord": "We werken rootless: poorten < 1024 kunnen niet gepubliceerd worden → -p 8080:80."},
+      {"vraag": "Waarom werkt dnf niet in de MariaDB-container van Docker Hub?", "antwoord": "Die image is gebaseerd op Debian → apt (Alpine → apk)."}
+    ]
+  }
+]
